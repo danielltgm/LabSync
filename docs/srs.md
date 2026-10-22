@@ -1,200 +1,356 @@
-# Software Requirements Specification (SRS) & PRD
-## Sprint 1: Antarmuka dan Alur Praktikum (LabSync)
+# Software Requirements Specification (SRS)
+## Proyek: LabSync - Sistem Manajemen Praktikum Laboratorium
+### Sprint 1: Antarmuka dan Alur Praktikum (UI & Interaction Flow)
 
 ---
 
-## 1. Product Requirements Document (PRD)
+## 1. Introduction & Project Scope
 
-### 1.1 Latar Belakang & Masalah
-Kegiatan praktikum di laboratorium komputer/sains membutuhkan koordinasi yang rapi antara **Asisten Laboratorium** dan **Praktikan (Mahasiswa)**. Beberapa kendala operasional yang sering terjadi di lapangan meliputi:
-- Praktikan kesulitan mengecek jadwal dan kepastian apakah sesi praktikum di lab sudah resmi dibuka oleh asisten.
-- Presensi manual menggunakan kertas rentan manipulasi, lambat direkap, dan rawan double-entry.
-- Asisten kesulitan memantau secara langsung siapa saja praktikan yang telah hadir selama sesi berlangsung.
-- Praktikan sering ragu apakah kehadiran mereka sudah tercatat dengan valid.
+### 1.1 Purpose (Tujuan)
+Dokumen **Software Requirements Specification (SRS)** ini merinci kebutuhan fungsional, non-fungsional, batasan bisnis, dan kriteria verifikasi untuk pengembangan aplikasi mobile **LabSync** pada **Sprint 1: Antarmuka dan Alur Praktikum**. Dokumen ini menjadi acuan tunggal (*single source of truth*) bagi Project Manager, Software Engineers (Programmer), dan Tim Quality Assurance dalam merancang dan memvalidasi antarmuka serta interaksi sistem sebelum melangkah ke integrasi database di Sprint berikutnya.
 
-**LabSync** dirancang sebagai aplikasi mobile (Expo / React Native) untuk mendigitalisasi alur operasional sesi praktikum, mulai dari pembukaan sesi, presensi mandiri praktikan, hingga rekapitulasi kehadiran seketika.
+### 1.2 Scope (Cakupan & Batasan Sistem)
+- **Cakupan Fitur Sprint 1 (*In-Scope*)**:
+  1. **Manajemen Tampilan Jadwal & Detail Sesi**: Menampilkan daftar sesi praktikum beserta meta data (mata praktikum, kelas, ruang lab, jadwal waktu, status sesi).
+  2. **Pengelolaan Siklus Sesi (Khusus Asisten)**: Mekanisme buka sesi (`TERJADWAL` -> `DIBUKA`) dan tutup sesi (`DIBUKA` -> `SELESAI`) disertai modal konfirmasi.
+  3. **Pencatatan Presensi Mandiri (Khusus Praktikan)**: Formulir input kehadiran interaktif dengan validasi pencegahan presensi ganda (*anti-duplicate check-in*) dan modal feedback keberhasilan.
+  4. **Rekapitulasi Kehadiran Sederhana**: Tampilan daftar mahasiswa yang hadir beserta waktu check-in untuk asisten, serta riwayat kehadiran pribadi untuk praktikan.
+  5. **Simulasi Peran (*Role & Identity Switcher*)**: Komponen antarmuka untuk beralih antara peran Asisten dan Praktikan (pilihan identitas dummy) guna memvalidasi keseluruhan alur sistem dalam satu perangkat.
+  6. **Penanganan Tampilan Kosong (*Empty State*)**: Visualisasi informatif ketika daftar jadwal, rekap presensi, atau riwayat belum memiliki data.
+  7. **Implementasi Layout & Navigasi**: Penerapan murni Flexbox, StyleSheet, dan Expo Router.
+- **Batasan Sistem Sprint 1 (*Out-of-Scope*)**:
+  1. Tidak terhubung ke basis data eksternal (*No SQL/NoSQL Database*) maupun backend server (Cloud/REST/GraphQL API).
+  2. Tidak ada mekanisme sinkronisasi data antar perangkat lewat jaringan (*no multi-device network sync*). Sesuai arahan teknis: *data disimpan dalam memory state aplikasi lokal selama runtime berlangsung*.
+  3. Tidak ada sistem autentikasi password/biometrik sesungguhnya (disimulasikan melalui Role Switcher UI).
 
-### 1.2 Tujuan & Batasan Sprint 1
-Sprint 1 berfokus pada **Antarmuka dan Alur Interaksi Praktikum (Frontend & UX Prototype)**.
+### 1.3 Definitions & Acronyms (Istilah & Singkatan)
+- **SRS**: Software Requirements Specification.
+- **PRD**: Product Requirements Document (tersedia terpisah pada [prd.md](file:///C:/Users/Daniel/LabSync/docs/prd.md)).
+- **ERD**: Entity Relationship Document (tersedia terpisah pada [erd.md](file:///C:/Users/Daniel/LabSync/docs/erd.md)).
+- **RTM**: Requirement Traceability Matrix.
+- **FR**: Functional Requirement.
+- **BR**: Business Rule.
+- **NFR**: Non-Functional Requirement.
+- **Asisten**: Pengguna dengan hak kelola pembukaan sesi, penutupan sesi, dan pemantauan rekapitulasi kehadiran seluruh praktikan.
+- **Praktikan**: Mahasiswa peserta praktikum dengan hak melakukan presensi pada sesi yang aktif dan melihat riwayat kehadirannya sendiri.
+- **Sesi Praktikum (*Session*)**: Satu unit kegiatan praktikum pada mata kuliah, kelas, ruang lab, dan rentang jam tertentu.
+- **Status Sesi**: Tahapan operasional sesi (`TERJADWAL` / *Scheduled*, `DIBUKA` / *Open*, `SELESAI` / *Closed*).
+- **Empty State**: Tampilan antarmuka khusus yang muncul ketika suatu daftar atau kumpulan data tidak memiliki item sama sekali.
 
-- **Fokus Utama**:
-  1. Validasi alur pengguna (*user journey*) kedua belah pihak (Asisten dan Praktikan).
-  2. Implementasi antarmuka responsif menggunakan **React Native Fundamental** (Flexbox, StyleSheet, useState, Modal, Form Input, Navigation).
-  3. Pemilihan peran (*Role Switcher*) dan identitas pengguna melalui UI mockup.
-- **Batasan (*Out of Scope*) Sprint 1**:
-  - **Belum terhubung ke backend server atau database (No DB, No Cloud Sync)**.
-  - Seluruh data menggunakan data lokal dummy/in-memory state yang aktif selama aplikasi berjalan.
-  - Sesuai arahan teknis: *Data presensi tidak harus sinkron langsung via network antara device asisten dan praktikan (fully dummy flow, yang penting alur UI dan interaksi tervalidasi).*
-
-### 1.3 Target Pengguna (User Persona)
-1. **Asisten Laboratorium**:
-   - Memeriksa jadwal praktikum yang diampu.
-   - Membuka sesi praktikum saat waktu lab dimulai.
-   - Memantau rekap kehadiran praktikan secara real-time pada sesi berjalan.
-   - Menutup sesi praktikum saat kegiatan selesai.
-2. **Praktikan (Mahasiswa)**:
-   - Melihat jadwal praktikum, kelas, ruang lab, dan status sesi.
-   - Melakukan presensi ketika sesi dibuka oleh asisten.
-   - Menerima konfirmasi/feedback visual bahwa presensi berhasil.
-   - Melihat catatan atau riwayat kehadiran pribadinya.
-
----
-
-## 2. User Stories & Acceptance Criteria (AC)
-
-Berdasarkan kompilasi kebutuhan pengguna Sprint 1, berikut adalah rincian kebutuhan fungsional:
-
-### US-01: Jadwal & Detail Sesi Praktikum
-> *Sebagai Pengguna (Asisten maupun Praktikan), saya ingin melihat daftar jadwal praktikum beserta informasi detailnya (nama praktikum, kelas, ruangan lab, waktu pelaksanaan, dan status sesi).*
-
-**Acceptance Criteria:**
-- [ ] Menampilkan daftar kartu (*session cards*) dengan informasi:
-  - Nama Praktikum (contoh: *Pemrograman Mobile*, *Basis Data*).
-  - Kode/Kelas (contoh: *IF-3A*, *SI-2B*).
-  - Ruangan Lab (contoh: *Lab Komputer 3*, *Lab Jaringan*).
-  - Jadwal Waktu (contoh: *08:00 - 10:00 WIB*).
-  - Status Sesi: `Terjadwal` (*Scheduled*), `Dibuka` (*Open*), atau `Selesai` (*Closed*).
-- [ ] Indikator visual status sesi menggunakan warna pembeda yang jelas (misal: Hijau = Dibuka, Abu-abu = Terjadwal, Merah/Gelap = Selesai).
-- [ ] Menangani kondisi saat daftar jadwal kosong (*empty state*).
+### 1.4 References (Dokumen Acuan)
+1. **IEEE Std 830-1998 / ISO/IEC/IEEE 29148:2018**: Standard for Software and Systems Engineering — Software Requirements Specification.
+2. **LabSync Product Requirements Document**: [docs/prd.md](file:///C:/Users/Daniel/LabSync/docs/prd.md).
+3. **LabSync Entity Relationship Document**: [docs/erd.md](file:///C:/Users/Daniel/LabSync/docs/erd.md).
+4. **React Native Official Documentation**:
+   - React Fundamentals: https://reactnative.dev/docs/intro-react?language=typescript&guide=android
+   - Flexbox Layout: https://reactnative.dev/docs/flexbox?language=javascript
+   - Handling Text Input & State: https://reactnative.dev/docs/handling-text-input
+   - Modal Component: https://reactnative.dev/docs/modal
+   - StyleSheet: https://reactnative.dev/docs/style
+5. **Expo Router Navigation Documentation**: https://docs.expo.dev/tutorial/add-navigation/
 
 ---
 
-### US-02: Pengelolaan Sesi Praktikum (Khusus Asisten)
-> *Sebagai Asisten, saya ingin dapat membuka dan menutup sesi praktikum dengan konfirmasi interaktif sehingga praktikan mengetahui status terkini sesi tersebut.*
+## 2. Overall Description
 
-**Acceptance Criteria:**
-- [ ] Tersedia tombol aksi kontekstual pada halaman detail/dashboard asisten:
-  - Tombol **"Buka Sesi"** ketika status sesi masih `Terjadwal`.
-  - Tombol **"Tutup Sesi"** ketika status sesi sedang `Dibuka`.
-  - Label non-aktif / badge statis saat sesi sudah `Selesai`.
-- [ ] Terdapat dialog konfirmasi modal sebelum aksi buka atau tutup sesi dieksekusi (*mencegah salah klik*).
-- [ ] Perubahan status sesi seketika terefleksi pada UI asisten.
+### 2.1 Product Perspective (Posisi Sistem)
+LabSync pada Sprint 1 bertindak sebagai aplikasi mobile *stand-alone prototype*. Seluruh komponen UI berinteraksi secara reaktif dengan lapisan *In-Memory State Store* (React Context / Hooks). Arsitektur ini dirancang modular sehingga antarmuka siap dipasangkan dengan REST API atau Cloud Database (Supabase/Firebase) pada Sprint berikutnya tanpa mengubah struktur presentasi.
 
----
-
-### US-03: Pencatatan Presensi (Khusus Praktikan)
-> *Sebagai Praktikan, saya ingin dapat melakukan presensi kehadiran ketika sesi praktikum telah dibuka, serta dicegah melakukan presensi ganda.*
-
-**Acceptance Criteria:**
-- [ ] Tombol **"Lakukan Presensi"** hanya aktif jika status sesi bernilai `Dibuka`.
-- [ ] Jika status masih `Terjadwal` atau sudah `Selesai`, tombol presensi berstatus non-aktif (*disabled*) dengan keterangan yang jelas.
-- [ ] Menampilkan formulir input presensi sederhana (NIM, Nama Praktikan, Catatan/Keterangan opsional).
-- [ ] Validasi *Anti-Duplicate*: Praktikan dengan identitas yang sama tidak dapat melakukan presensi lebih dari 1 kali pada sesi yang sama.
-- [ ] Menampilkan modal/dialog feedback sukses ketika presensi berhasil dicatat, lengkap dengan informasi timestamp waktu presensi.
-
----
-
-### US-04: Rekapitulasi Sederhana Kehadiran
-> *Sebagai Asisten, saya ingin melihat daftar rekap praktikan yang telah hadir; dan sebagai Praktikan, saya ingin melihat catatan kehadiran pribadi saya.*
-
-**Acceptance Criteria:**
-- [ ] **Sisi Asisten**:
-  - Menampilkan daftar praktikan yang sudah presensi pada sesi terpilih.
-  - Setiap baris/kartu menampilkan: Nama Praktikan, NIM, dan Waktu Presensi (Jam:Menit:Detik).
-  - Menampilkan jumlah total praktikan yang hadir (misal: `Total Hadir: 18 Praktikan`).
-  - Menampilkan *empty state* informatif jika belum ada praktikan yang presensi (*"Belum ada praktikan yang melakukan presensi pada sesi ini"*).
-- [ ] **Sisi Praktikan**:
-  - Menampilkan riwayat/status kehadiran praktikan yang sedang aktif (apakah sudah hadir pada sesi ini atau belum).
-
----
-
-### US-05: Simulasi Peran & Identitas Pengguna (Role Switcher)
-> *Sebagai Penguji Aplikasi/Evaluator Sprint 1, saya ingin dengan mudah berpindah peran antara Asisten dan Praktikan untuk mendemonstrasikan keseluruhan alur tanpa perlu sistem otentikasi login yang rumit.*
-
-**Acceptance Criteria:**
-- [ ] Terdapat tombol/toggle peran di bagian atas aplikasi (*Header / Top Bar*) untuk beralih antara:
-  - Peran **Asisten** (Akses: Kelola sesi buka/tutup, lihat rekap seluruh mahasiswa).
-  - Peran **Praktikan** (Akses: Presensi sesi aktif, lihat riwayat pribadi).
-- [ ] Dropdown/pilihan identitas dummy praktikan (misal: Praktikan 1: Yudha, Praktikan 2: Agil, Praktikan 3: Zufar) untuk menguji validasi presensi ganda.
-
----
-
-## 3. Alur Pengguna (User Flow) & Demonstrasi Sprint 1
-
-Berikut adalah diagram alur yang menjadi target demonstrasi akhir Sprint 1:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor A as Asisten Lab
-    participant App as Aplikasi LabSync (State Lokal)
-    actor P as Praktikan
-
-    Note over A,App: Tahap 1: Pengelolaan Sesi
-    A->>App: Ganti peran ke "Asisten"
-    A->>App: Buka Jadwal & Pilih Sesi Praktikum (Status: Terjadwal)
-    A->>App: Klik "Buka Sesi" -> Konfirmasi pada Modal
-    App-->>A: Status sesi berubah menjadi "DI BUKA" (Badge Hijau)
-
-    Note over P,App: Tahap 2: Presensi Praktikan
-    P->>App: Ganti peran ke "Praktikan"
-    P->>App: Pilih Sesi yang sedang "DI BUKA"
-    P->>App: Klik "Lakukan Presensi" -> Isi Form & Kirim
-    App-->>P: Modal feedback: "Presensi Berhasil!" + Catatan Waktu
-    P->>App: Coba submit presensi lagi
-    App-->>P: Peringatan: "Anda sudah melakukan presensi pada sesi ini"
-
-    Note over A,App: Tahap 3: Pemantauan Rekap & Penutupan
-    A->>App: Ganti peran kembali ke "Asisten"
-    A->>App: Buka tab "Rekap Kehadiran"
-    App-->>A: Menampilkan daftar mahasiswa yang baru presensi beserta jamnya
-    A->>App: Klik "Tutup Sesi" -> Konfirmasi pada Modal
-    App-->>A: Status sesi berubah menjadi "SELESAI"
-    
-    Note over P,App: Tahap 4: Verifikasi Akhir Praktikan
-    P->>App: Ganti peran ke "Praktikan"
-    App-->>P: Status sesi "SELESAI", tombol presensi terkunci
-    P->>App: Cek "Catatan Kehadiran Saya" -> Tertera status "Hadir"
+```
++-------------------------------------------------------------+
+|                LabSync Mobile UI (Expo / RN)                |
+|  [Role Switcher] | [Session List] | [Form Presensi & Modal]  |
++-------------------------------------------------------------+
+                              |
+                     React State / Context
+                              |
++-------------------------------------------------------------+
+|              In-Memory Mock Store (Sprint 1)                |
+|    - DUMMY_USERS                                            |
+|    - INITIAL_SESSIONS (State: Terjadwal/Dibuka/Selesai)     |
+|    - ATTENDANCE_RECORDS (State: Check-in log)               |
++-------------------------------------------------------------+
 ```
 
----
+### 2.2 User Classes & Roles (Kelas Pengguna & Peran)
+1. **Asisten Laboratorium**:
+   - Memiliki wewenang manajerial terhadap siklus sesi.
+   - Hak akses: Membuka sesi, menutup sesi, melihat seluruh daftar praktikan yang telah presensi pada sesi terkait.
+2. **Praktikan (Mahasiswa)**:
+   - Pengguna operasional praktikum.
+   - Hak akses: Melihat informasi sesi, melakukan presensi saat sesi berstatus `DIBUKA`, melihat riwayat kehadiran pribadi.
+3. **Evaluator / Tester (Reviewer)**:
+   - Menggunakan fitur *Role Switcher* untuk berganti perspektif peran secara instan guna memverifikasi alur end-to-end tanpa login ulang.
 
-## 4. Spesifikasi UI & UX Design
+### 2.3 Operating Environment (Lingkungan Operasi)
+- **Framework**: React Native 0.88.x dengan Expo SDK 58.x (TypeScript).
+- **Arsitektur Navigasi**: Expo Router (File-based routing pada `src/app/`).
+- **Platform Sasaran**: Android (API level 24+) dan iOS (iOS 14+), serta kompatibel dijalankan di Expo Go maupun web browser untuk preview cepat.
+- **Rasio Layar Minimum**: Perangkat mobile dengan lebar resolusi 360dp atau lebih tinggi.
 
-### 4.1 Panduan Tata Letak (Flexbox & Layout)
-- Seluruh tampilan disusun menggunakan prinsip **Flexbox** bawaan React Native:
-  - `flex: 1` untuk container utama.
-  - `flexDirection: 'row'` untuk komponen kartu, badge, dan tombol berdampingan.
-  - `justifyContent: 'space-between'` untuk header informasi jadwal.
-  - `padding: 16` dan `gap: 12` untuk ritme visual yang konsisten.
-- Menggunakan `SafeAreaView` dari `react-native-safe-area-context` agar tampilan aman pada notch perangkat iOS/Android.
+### 2.4 Assumptions & Dependencies (Asumsi & Ketergantungan)
+- **Asumsi**:
+  - Simulasi alur kedua peran dijalankan pada satu perangkat yang sama (*single device simulation*) menggunakan komponen switch role.
+  - Reset aplikasi (*reload*) akan mengembalikan data ke dataset inisial dummy.
+- **Ketergantungan**:
+  - Pustaka bawaan Expo/React Native: `react-native`, `expo-router`, `react-native-safe-area-context`, `@expo/vector-icons` (jika diperlukan icon visual).
+  - Tidak ada dependensi external cloud service pada Sprint 1.
 
-### 4.2 Desain Komponen UI Kunci
-1. **Header & Role Switcher**:
-   - Terletak di posisi atas layar.
-   - Berisi nama aplikasi (*LabSync*), badge peran saat ini, dan tombol toggle peran (*Switch Role*).
-2. **Kartu Jadwal Praktikum (`SessionCard`)**:
-   - Menampilkan judul mata praktikum dengan typography tebal (*Bold, 18px*).
-   - Menampilkan baris meta: Ruang Lab, Jam Praktikum, Nama Kelas.
-   - Badge status:
-     - `TERJADWAL`: Latar kuning/abu-abu pastel, teks abu gelap.
-     - `DIBUKA`: Latar hijau pastel (`#D1FAE5`), teks hijau tua (`#065F46`).
-     - `SELESAI`: Latar merah pastel (`#FEE2E2`), teks merah tua (`#991B1B`).
-3. **Formulir Presensi (`AttendanceForm`)**:
-   - `TextInput` untuk NIM dan Nama Lengkap.
-   - Input catatan opsional (misal: Nomor PC / Keterangan Lab).
-   - Tombol utama "Kirim Presensi" dengan feedback visual ketika ditekan (*Pressable opacity/ripple*).
-4. **Modal Konfirmasi & Feedback (`Modal` React Native)**:
-   - Pop-up di tengah layar dengan backdrop semi-transparan (`rgba(0,0,0,0.5)`).
-   - Modal Konfirmasi Buka/Tutup Sesi: Memuat teks pertanyaan, tombol "Batal", dan tombol aksi berwarna tegas.
-   - Modal Sukses Presensi: Ikon ceklis, teks ucapan selamat, catatan jam kehadiran, dan tombol "Selesai".
-5. **Daftar Rekapitulasi Kehadiran (`AttendanceList`)**:
-   - Menampilkan kartu ringkas per mahasiswa yang hadir.
-   - Informasi avatar inisial nama, NIM, dan waktu absensi.
-   - *Empty State View*: Menampilkan ilustrasi/ikon sederhana dengan teks instruktif jika belum ada data.
-
-### 4.3 Struktur Navigasi Layar (Expo Router)
-Sesuai standar Expo Router pada direktori `src/app`:
-- `src/app/index.tsx`: Halaman Beranda utama (Daftar Jadwal Praktikum & Akses Aksi Cepat).
-- `src/app/session/[id].tsx`: Halaman Detail Sesi Praktikum (Aksi Sesi Asisten / Tombol Presensi Praktikan).
-- `src/app/rekap/[id].tsx`: Halaman Rekapitulasi Presensi Sesi (Khusus Asisten & Arsip).
-- `src/app/history.tsx`: Halaman Catatan Kehadiran Pribadi (Khusus Praktikan).
+### 2.5 Constraints (Batasan Teknis)
+- **No Database / No Network Backend**: Tidak ada persistensi disk permanen atau transmisi jaringan internet pada Sprint 1.
+- **Strict Mobile-First Flexbox**: Dilarang menggunakan penataan posisi absolut yang merusak responsivitas perangkat yang berbeda resolusi.
+- **TypeScript Strictness**: Seluruh properti dan state harus bertipe data jelas (`strict: true`).
 
 ---
 
-## 5. Kebutuhan Non-Fungsional (NFR)
+## 3. Functional Requirements (FR)
 
-1. **Responsivitas Tampilan**: Antarmuka harus rapi dan proporsional pada berbagai ukuran layar ponsel (Android & iOS).
-2. **Keterbacaan & Aksesibilitas**: Kontras warna teks dan latar belakang memenuhi standar keterbacaan, ukuran tombol minimal 44x44 pt.
-3. **Penyimpanan Status Dalam Memori**: Perubahan status sesi dan penambahan presensi langsung memperbarui UI tanpa perlu me-reload aplikasi.
-4. **Validasi Tanpa Crash**: Input kosong atau presensi ganda harus ditangani dengan pesan error ramah pengguna tanpa menyebabkan error fatal aplikasi.
+Setiap kebutuhan fungsional dilengkapi dengan ID, aktor, prioritas (High/Medium/Low), dan kriteria verifikasi.
+
+### FR-01: Tampilan Daftar Jadwal & Detail Sesi
+- **Aktor**: Asisten, Praktikan, Evaluator.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus menampilkan daftar kartu jadwal sesi praktikum yang memuat informasi nama praktikum, kode kelas, ruangan lab, waktu pelaksanaan (jam mulai - jam selesai), tanggal, dan status sesi.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Kartu sesi menampilkan teks nama mata kuliah, kelas, lab, dan jam dengan jelas.
+  - Status sesi ditampilkan menggunakan badge visual dengan variasi warna:
+    - `TERJADWAL`: Abu-abu / Netral.
+    - `DIBUKA`: Hijau / Emerald.
+    - `SELESAI`: Merah / Gelap.
+  - Menampilkan komponen *empty state* jika daftar sesi bernilai kosong.
+
+### FR-02: Simulasi Pemilihan Peran & Identitas (Role Switcher)
+- **Aktor**: Evaluator / Tester, Asisten, Praktikan.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus menyediakan kontrol antarmuka di bagian atas (header) untuk beralih antara peran **Asisten** dan **Praktikan**, serta memilih akun praktikan aktif (misal: Agil Saputra atau Zufar Ramadhan).
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Tersedia tombol pill/segmented toggle yang jelas antara `Asisten` dan `Praktikan`.
+  - Saat peran Praktikan aktif, terdapat opsi untuk memilih identitas dummy mahasiswa.
+  - Perubahan peran langsung mengubah konteks hak akses UI pada layar secara reaktif tanpa perlu reload.
+
+### FR-03: Pembukaan Sesi Praktikum oleh Asisten
+- **Aktor**: Asisten.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus memungkinkan asisten mengubah status sesi praktikum dari `TERJADWAL` menjadi `DIBUKA`.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Tombol "Buka Sesi" hanya terlihat/aktif ketika peran adalah Asisten dan status sesi masih `TERJADWAL`.
+  - Menekan tombol "Buka Sesi" memunculkan modal dialog konfirmasi (*"Apakah Anda yakin ingin membuka sesi praktikum ini?"*).
+  - Ketika dikonfirmasi, status sesi segera berubah menjadi `DIBUKA` dan badge status terupdate seketika menjadi hijau.
+
+### FR-04: Penutupan Sesi Praktikum oleh Asisten
+- **Aktor**: Asisten.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus memungkinkan asisten mengubah status sesi praktikum dari `DIBUKA` menjadi `SELESAI`.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Tombol "Tutup Sesi" hanya terlihat/aktif ketika peran adalah Asisten dan status sesi sedang `DIBUKA`.
+  - Menekan tombol "Tutup Sesi" memunculkan modal dialog konfirmasi penutupan sesi.
+  - Ketika dikonfirmasi, status sesi berubah menjadi `SELESAI`, badge berubah merah, dan aksi buka/presensi terkunci.
+
+### FR-05: Formulir Presensi Kehadiran Praktikan
+- **Aktor**: Praktikan.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus menyediakan antarmuka berupa form input (dalam modal atau layar khusus) bagi praktikan untuk melakukan presensi pada sesi yang sedang dibuka.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Tombol "Lakukan Presensi" hanya aktif jika status sesi bernilai `DIBUKA`.
+  - Jika sesi `TERJADWAL` atau `SELESAI`, tombol dalam kondisi non-aktif (*disabled*) dengan label penjelas.
+  - Form memuat input NIM, Nama Lengkap (terisi otomatis sesuai profil aktif), dan input catatan opsional (misal: Nomor Meja / PC).
+
+### FR-06: Validasi Presensi Ganda (Anti-Duplicate Check-in)
+- **Aktor**: Praktikan, Sistem.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus memvalidasi data presensi dan menolak pencatatan apabila praktikan dengan NIM yang sama telah terdaftar hadir pada sesi praktikum yang sama.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Ketika praktikan yang sudah presensi mencoba mengirim form presensi kembali pada sesi yang sama, sistem menggagalkan aksi tersebut.
+  - Sistem menampilkan pesan peringatan ramah: *"Anda sudah melakukan presensi pada sesi ini sebelumnya!"*.
+  - Tidak ada data duplikat yang ditambahkan ke rekapitulasi.
+
+### FR-07: Feedback Visual & Notifikasi Presensi Berhasil
+- **Aktor**: Praktikan.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus memberikan konfirmasi visual seketika setelah formulir presensi berhasil dicatat.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Menampilkan modal feedback yang memuat ikon sukses (centang hijau), pesan keberhasilan presensi, nama mahasiswa, nama sesi, dan stempel waktu kehadiran (format `HH:mm:ss`).
+  - Terdapat tombol "Selesai" / "Tutup" untuk kembali ke tampilan utama.
+
+### FR-08: Rekapitulasi Presensi Sesi (Sisi Asisten)
+- **Aktor**: Asisten.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus menampilkan daftar seluruh mahasiswa yang telah melakukan presensi pada suatu sesi praktikum secara terperinci.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Asisten dapat mengakses layar atau tab rekapitulasi dari sesi terkait.
+  - Menampilkan kartu ringkasan total praktikan yang hadir (contoh: *"Total Hadir: 1 Praktikan"*).
+  - Setiap baris item rekapitulasi memuat: Inisial/Avatar, Nama Lengkap, NIM, Waktu Presensi (Jam:Menit:Detik), dan Catatan PC.
+  - Jika belum ada mahasiswa yang presensi, sistem menampilkan komponen *empty state* dengan teks *"Belum ada praktikan yang melakukan presensi"*.
+
+### FR-09: Catatan Riwayat Kehadiran Pribadi (Sisi Praktikan)
+- **Aktor**: Praktikan.
+- **Prioritas**: High (Must Have).
+- **Deskripsi**: Sistem harus memungkinkan praktikan melihat catatan dan status kehadiran pribadinya pada sesi praktikum.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Praktikan dapat melihat indikator apakah dirinya sudah tercatat hadir pada sesi praktikum yang sedang aktif atau yang telah selesai.
+  - Jika belum pernah presensi, tampil pesan penjelas bahwa belum ada riwayat kehadiran.
+
+### FR-10: Penanganan Kondisi Data Kosong (Empty State Handling)
+- **Aktor**: Sistem, Seluruh Pengguna.
+- **Prioritas**: Medium (Should Have).
+- **Deskripsi**: Sistem harus memiliki komponen antarmuka ramah pengguna ketika daftar jadwal, daftar rekap kehadiran, atau riwayat tidak memiliki data.
+- **Kriteria Verifikasi (Acceptance Criteria)**:
+  - Tidak memunculkan layar putih kosong (*blank screen*).
+  - Memuat ikon ilustrasi visual, judul kondisi kosong, dan deskripsi instruktif.
+
+---
+
+## 4. Business Rules (BR)
+
+Business Rules mendefinisikan regulasi proses bisnis praktikum yang wajib dipatuhi oleh seluruh fungsi sistem:
+
+| ID | Nama Aturan Bisnis | Deskripsi & Kebijakan | Rationale & Dampak Sistem |
+| :--- | :--- | :--- | :--- |
+| **BR-01** | **Hak Eksklusif Pengelolaan Sesi** | Hanya pengguna dengan peran `ASISTEN` yang memiliki hak membuka atau menutup sesi praktikum. | Menjamin otoritas lab. Praktikan dilarang keras melihat atau memicu tombol kontrol sesi. |
+| **BR-02** | **Prasyarat Presensi Berdasarkan Status Sesi** | Presensi praktikan **hanya sah dan dapat dilakukan** apabila status sesi praktikum bernilai `DIBUKA`. | Praktikan tidak boleh presensi mendahului waktu (`TERJADWAL`) atau menyusul setelah lab usai (`SELESAI`). |
+| **BR-03** | **Aturan Anti-Duplicate Presensi** | Satu identitas praktikan (NIM unik) hanya diperbolehkan melakukan presensi tepat **1 (satu) kali** pada sesi yang sama. | Mencegah kecurangan, pengiriman ganda akibat ketidaksabaran pengguna, serta inkonsistensi hitungan kehadiran. |
+| **BR-04** | **Immutabilitas Sesi Ditutup (*Closed Session Lock*)** | Sesi praktikum yang telah berstatus `SELESAI` bersifat permanen/terkunci pada Sprint 1. Tidak dapat dibuka kembali dan tidak dapat menerima presensi baru. | Menjamin integritas data akhir kegiatan praktikum setelah asisten resmi menutup lab. |
+| **BR-05** | **Konfirmasi Tindakan Kritis** | Setiap aksi perubahan status sesi (Buka Sesi dan Tutup Sesi) **wajib melalui modal konfirmasi eksplisit**. | Menghindari *accidental click* dari asisten yang dapat berakibat fatal pada alur presensi praktikan. |
+| **BR-06** | **Privasi & Visibilitas Rekapitulasi** | Asisten berhak melihat rekapitulasi seluruh mahasiswa pada sesi yang diampunya, sedangkan praktikan hanya berhak melihat catatan kehadirannya sendiri. | Menjaga kerapian informasi dan fokus kebutuhan pengguna sesuai perannya. |
+
+---
+
+## 5. Non-Functional Requirements (NFR)
+
+### 5.1 Performance (Kinerja & Kecepatan Respons)
+- **NFR-01.1**: Waktu render komponen antarmuka tidak boleh melebihi 100 milidetik saat beralih peran atau membuka modal.
+- **NFR-01.2**: Animasi pembukaan modal dan scroll daftar sesi/rekap harus berjalan mulus pada kecepatan 60 frame per detik (FPS) tanpa *jank*.
+- **NFR-01.3**: Pemrosesan validasi formulir presensi dan pencatatan state lokal harus selesai secara instan (< 50 milidetik).
+
+### 5.2 Usability & Accessibility (Kemudahan Penggunaan)
+- **NFR-02.1**: Seluruh tombol interaktif memiliki ukuran area ketuk (*touch target*) minimal 44x44 density-independent pixels (dp).
+- **NFR-02.2**: Kontras warna antara teks dan latar belakang memenuhi standar WCAG 2.1 AA (rasio kontras minimal 4.5:1).
+- **NFR-02.3**: Setiap field input teks pada form dilengkapi placeholder dan label yang jelas.
+- **NFR-02.4**: Pesan galat (*error message*) disajikan dengan bahasa Indonesia yang jelas, sopan, dan mengarahkan tindakan perbaikan.
+
+### 5.3 Reliability & Availability (Keandalan Sistem)
+- **NFR-03.1**: Aplikasi tidak boleh mengalami *crash* (*zero unhandled exception*) ketika menerima masukan form kosong, format NIM tidak valid, atau saat data daftar kosong.
+- **NFR-03.2**: State data lokal harus persisten selama aplikasi aktif di foreground/background (sebelum proses ditutup atau di-reload).
+
+### 5.4 Maintainability & Code Quality (Kualitas Kode)
+- **NFR-04.1**: Kode sumber wajib mematuhi standar *Clean Architecture* berbasis komponen React Native yang terpisah antara *presentational components* dan *state container*.
+- **NFR-04.2**: Proyek harus lolos typecheck TypeScript (`npx tsc --noEmit`) dengan 0 error.
+- **NFR-04.3**: Tidak ada pelanggaran linting (`npx expo lint`).
+- **NFR-04.4**: Seluruh styling wajib menggunakan `StyleSheet.create()` bawaan React Native dan Flexbox, tanpa inline style berlebihan.
+
+### 5.5 Portability (Portabilitas Perangkat)
+- **NFR-05.1**: Tata letak antarmuka harus responsif dan proporsional pada platform Android dan iOS dengan memanfaatkan `SafeAreaView`.
+
+---
+
+## 6. Data Requirements
+
+Struktur data lengkap, kamus data, dan diagram relasi entitas didokumentasikan secara terpisah pada [docs/erd.md](file:///C:/Users/Daniel/LabSync/docs/erd.md). Ringkasan kebutuhan data adalah sebagai berikut:
+
+### 6.1 Entitas & Atribut Kunci
+1. **User (`UserProfile`)**:
+   - `id`: string (UUID unik).
+   - `identifier`: string (NIM untuk Praktikan, Kode/NIP untuk Asisten).
+   - `name`: string (Nama Lengkap).
+   - `role`: enum (`'ASISTEN' | 'PRAKTISAN'`).
+   - `className`: string opsional (contoh: `'IF-3A'`).
+2. **Session (`Session`)**:
+   - `id`: string (UUID sesi).
+   - `courseName`: string (Nama Praktikum).
+   - `className`: string (Kelas Peserta).
+   - `labRoom`: string (Nama Laboratorium).
+   - `date`: string (Format `YYYY-MM-DD`).
+   - `startTime` & `endTime`: string (Format `HH:mm`).
+   - `status`: enum (`'TERJADWAL' | 'DIBUKA' | 'SELESAI'`).
+   - `assistantName`: string (Nama Asisten Pengampu).
+3. **Attendance (`AttendanceRecord`)**:
+   - `id`: string (UUID presensi).
+   - `sessionId`: string (Foreign Key ke Sesi).
+   - `studentId`: string (NIM Praktikan).
+   - `studentName`: string (Nama Praktikan).
+   - `className`: string (Kelas Praktikan).
+   - `checkInTime`: string (Format `HH:mm:ss`).
+   - `notes`: string opsional (Nomor PC/Meja).
+
+### 6.2 Validasi & Batasan Data
+- Format jam presensi menggunakan waktu lokal sistem (`new Date().toLocaleTimeString('id-ID')`).
+- Field `studentId` dan `sessionId` bersifat wajib (*mandatory*).
+- Validasi integritas: Satu pasangan `(sessionId, studentId)` bersifat unik.
+
+### 6.3 Siklus Hidup & Retensi Data Sprint 1
+- Seluruh data bertempat di memori runtime JavaScript aplikasi.
+- Dataset awal (*initial state*) di-seed dari file `src/constants/dummy-data.ts`.
+
+---
+
+## 7. Interfaces & System Integration
+
+### 7.1 User Interface Requirements (Persyaratan Antarmuka)
+1. **Prinsip Flexbox**:
+   - Semua halaman menggunakan `flex: 1` dengan `SafeAreaView` sebagai pembungkus utama.
+   - Penataan kartu, header, dan item daftar menggunakan `flexDirection: 'row'`, `alignItems: 'center'`, dan `justifyContent: 'space-between'`.
+2. **Modal & Feedback**:
+   - Dialog konfirmasi pembukaan dan penutupan sesi menggunakan komponen `Modal` React Native dengan latar belakang semi-transparan (`rgba(0,0,0,0.5)`).
+   - Form presensi praktikan disajikan melalui modal atau bottom sheet interaktif.
+   - Umpan balik keberhasilan presensi menampilkan rincian waktu kehadiran dan ikon konfirmasi.
+3. **Color-Coded Status Badge**:
+   - Indikator status sesi memiliki pembeda visual yang kuat untuk meminimalkan ambiguitas pengguna.
+
+### 7.2 Screen & Navigation Architecture (Expo Router)
+Struktur navigasi file-based Expo Router disusun sebagai berikut:
+
+```
+src/app/
+├── _layout.tsx           # Root navigator & SafeArea / Context Provider
+├── index.tsx             # Halaman Beranda (Header, Role Switcher, & Daftar Sesi)
+├── rekap/
+│   └── [id].tsx          # Halaman Rekapitulasi Presensi Sesi (Khusus Asisten)
+└── history.tsx           # Halaman Catatan Kehadiran Pribadi (Khusus Praktikan)
+```
+
+### 7.3 System & External Integration
+- **Fase Sprint 1**: Sistem terisolasi secara lokal (*offline in-memory mock*).
+- **Protokol Masa Depan (Sprint 2 Ready)**: Arsitektur state store dirancang menggunakan pola *Repository Pattern* atau *React Context Action Dispatcher* sehingga pemanggilan fungsi lokal (seperti `checkInSession`, `openSession`, `closeSession`) dapat langsung digantikan dengan pemanggilan HTTP/REST client Axios/Fetch pada Sprint 2 tanpa mengubah komponen UI.
+
+---
+
+## 8. Verification, Acceptance & Traceability
+
+### 8.1 Acceptance Criteria Alur Demonstrasi Sprint 1
+Sprint 1 dinyatakan **LULUS (Accepted)** apabila alur demonstrasi 5 tahap berikut dapat dijalankan secara konsisten pada antarmuka aplikasi:
+
+1. **Tahap 1 (Asisten Membuka Sesi)**:
+   - Penguji memilih peran **Asisten**.
+   - Penguji memilih sesi berstatus `TERJADWAL` (contoh: *Pemrograman Mobile*).
+   - Penguji menekan tombol **"Buka Sesi"** -> Modal konfirmasi muncul -> Penguji klik konfirmasi.
+   - Status sesi seketika berubah menjadi `DIBUKA` (badge warna hijau).
+2. **Tahap 2 (Praktikan Melakukan Presensi)**:
+   - Penguji beralih peran ke **Praktikan** (pilih akun: *Agil Saputra*).
+   - Sesi *Pemrograman Mobile* terlihat berstatus `DIBUKA`.
+   - Penguji menekan tombol **"Lakukan Presensi"** -> Form muncul -> Masukkan catatan PC -> Klik kirim.
+   - Modal feedback sukses muncul menampilkan waktu kehadiran tercatat.
+3. **Tahap 3 (Validasi Anti-Presensi Ganda)**:
+   - Penguji (tetap dengan akun *Agil Saputra*) mencoba menekan tombol presensi kembali pada sesi yang sama.
+   - Sistem menolak proses dan menampilkan pesan peringatan bahwa praktikan sudah tercatat hadir.
+4. **Tahap 4 (Asisten Memantau Rekap & Menutup Sesi)**:
+   - Penguji beralih peran kembali ke **Asisten**.
+   - Penguji membuka halaman **Rekapitulasi Presensi** pada sesi terkait.
+   - Nama *Agil Saputra* beserta jam kehadiran dan catatan PC tampil di dalam daftar, dengan total kehadiran bertambah menjadi 1.
+   - Penguji menekan tombol **"Tutup Sesi"** -> Modal konfirmasi muncul -> Penguji klik konfirmasi.
+   - Status sesi berubah menjadi `SELESAI` (badge warna merah).
+5. **Tahap 5 (Verifikasi Akhir Praktikan)**:
+   - Penguji beralih peran ke **Praktikan**.
+   - Pada sesi yang berstatus `SELESAI`, tombol presensi terkunci/disabled.
+   - Penguji membuka menu **Riwayat Kehadiran** dan melihat status kehadirannya tercatat "Hadir".
+
+### 8.2 Requirement Traceability Matrix (RTM)
+
+Matriks keterlacakan ini memetakan hubungan antara User Story, Functional Requirement (FR), Business Rule (BR), Komponen/Layar UI, dan Test Case verifikasi:
+
+| US ID | Functional Req (FR) | Business Rule (BR) | Komponen & Layar Implementasi | Kode Uji / Test Case |
+| :--- | :--- | :--- | :--- | :--- |
+| **US-01** | FR-01, FR-10 | BR-06 | `SessionCard.tsx`, `EmptyState.tsx`, `src/app/index.tsx` | `TC-01`: Render daftar sesi & status badge |
+| **US-02** | FR-03, FR-04 | BR-01, BR-04, BR-05 | `SessionControlAction.tsx`, `ConfirmationModal.tsx` | `TC-02`: Buka sesi praktikum via modal<br>`TC-03`: Tutup sesi praktikum via modal |
+| **US-03** | FR-05, FR-06, FR-07 | BR-02, BR-03 | `AttendanceFormModal.tsx`, `AttendanceFeedbackModal.tsx` | `TC-04`: Submit presensi saat sesi DIBUKA<br>`TC-05`: Validasi tolak presensi ganda<br>`TC-06`: Tombol disabled jika TERJADWAL/SELESAI |
+| **US-04** | FR-08, FR-09 | BR-06 | `AttendanceListItem.tsx`, `src/app/rekap/[id].tsx`, `src/app/history.tsx` | `TC-07`: Tampilan rekapitulasi kehadiran asisten<br>`TC-08`: Tampilan riwayat kehadiran praktikan |
+| **US-05** | FR-02 | BR-01, BR-06 | `RoleSwitcher.tsx`, `src/app/index.tsx` | `TC-09`: Pengalihan peran Asisten <-> Praktikan |

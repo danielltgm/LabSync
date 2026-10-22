@@ -1,247 +1,193 @@
 # Panduan Programmer & Pembagian Tugas (Sprint 1)
 ## Proyek: LabSync - Antarmuka dan Alur Praktikum
-
-Dokumen ini memuat arsitektur teknis, kontrak data (TypeScript interfaces), aturan kepemilikan file (*file ownership*), serta pembagian tugas (*jobdesk*) untuk 3 programmer: **Yudha**, **Agil**, dan **Zufar**.
-
----
-
-## 1. Strategi Pengembangan: Minim Dependensi & Zero-Conflict
-
-Untuk meminimalkan potensi konflik merge (*git merge conflict*) dan saling tunggu antar programmer, tim menerapkan prinsip berikut:
-1. **Strict File Ownership**: Setiap programmer memiliki file dan folder komponennya masing-masing. Programmer dilarang mengedit file milik programmer lain tanpa koordinasi.
-2. **Contract-First Development**: Tipe data (*TypeScript interfaces*) dan dataset dummy disepakati di awal pada folder `src/types/` dan `src/constants/`. Programmer bekerja mengacu pada kontrak ini.
-3. **Fully Dummy & In-Memory State**: Tidak ada koneksi database/backend di Sprint 1. Data disimpan pada React State / Context lokal selama aplikasi berjalan.
-4. **Independent Sandbox Testing**: Setiap programmer dapat menguji layarnya sendiri secara mandiri menggunakan mock data bawaan komponen masing-masing.
+### Arsitektur Low-Dependency, Manajemen Ketergantungan, & Jobdesk Tim
 
 ---
 
-## 2. Matriks Kepemilikan File (*File Ownership Matrix*)
+## 1. Filosofi Arsitektur: Low-Dependency & Zero-Conflict
 
-| Programmer | Wilayah Tanggung Jawab Utama | File & Direktori Eksklusif |
-| :--- | :--- | :--- |
-| **Yudha** | **Core Shell, Role Switcher, & Sesi Asisten** | `src/types/user.ts`<br>`src/types/session.ts`<br>`src/components/common/RoleSwitcher.tsx`<br>`src/components/common/StatusBadge.tsx`<br>`src/components/common/ConfirmationModal.tsx`<br>`src/components/asisten/SessionCard.tsx`<br>`src/components/asisten/SessionControlAction.tsx`<br>`src/app/index.tsx` *(Beranda & Jadwal)* |
-| **Agil** | **Alur Praktikan & Form Presensi Anti-Ganda** | `src/types/attendance.ts`<br>`src/components/praktikan/SessionPraktikanCard.tsx`<br>`src/components/praktikan/AttendanceFormModal.tsx`<br>`src/components/praktikan/AttendanceFeedbackModal.tsx`<br>`src/app/praktikan/presensi.tsx` *(Layar Presensi)* |
-| **Zufar** | **Rekapitulasi Kehadiran & Riwayat (Asisten & Praktikan)** | `src/components/common/EmptyState.tsx`<br>`src/components/rekap/AttendanceListItem.tsx`<br>`src/components/rekap/AttendanceSummaryCard.tsx`<br>`src/app/rekap/[id].tsx` *(Layar Rekap Asisten)*<br>`src/app/history.tsx` *(Layar Riwayat Praktikan)* |
+Untuk memastikan 3 orang programmer (**Yudha**, **Agil**, dan **Zufar**) dapat bekerja serentak secara paralel tanpa saling tunggu (*blocking*) dan tanpa konflik penggabungan kode (*git merge conflict*), proyek LabSync Sprint 1 menerapkan prinsip:
+
+1. **Contract-First Development**:
+   - Seluruh kontrak tipe data TypeScript (`src/types/`) dan dataset inisial (`src/constants/dummy-data.ts`) telah didefinisikan secara tuntas di awal proyek.
+   - Kontrak ini bersifat *immutable* selama Sprint 1. Tidak ada programmer yang boleh mengubah nama properti tanpa persetujuan tim.
+2. **Component Isolation & Pure Props Pattern**:
+   - Setiap komponen UI dibuat sebagai *presentational component* murni yang menerima data melalui `props` dan mengirimkan aksi melalui *callback functions* (misal: `onPress`, `onSubmit`, `onConfirm`).
+   - Setiap programmer **dapat langsung menguji tampilannya sendiri (Sandbox Testing)** hanya dengan mengoper data dummy lokal pada props, tanpa menunggu state global atau layar programmer lain selesai.
+3. **Strict Physical File Ownership**:
+   - Setiap programmer memiliki direktori dan berkas eksklusifnya masing-masing.
+   - Larangan keras mengedit berkas milik programmer lain sebelum fase integrasi resmi.
 
 ---
 
-## 3. Kontrak Data & Tipe Bersama (Shared Contracts)
+## 2. Peta Analisis Ketergantungan Antar Programmer (Dependency Analysis)
 
-Seluruh programmer **wajib** mengacu pada tipe data berikut:
+Tabel berikut memetakan potensi ketergantungan antar programmer beserta strategi mitigasinya:
 
-### 3.1 Identitas Pengguna & Peran (`src/types/user.ts`)
-```typescript
-export type UserRole = 'ASISTEN' | 'PRAKTISAN';
+| Hubungan | Modul Terkait | Jenis Dependensi | Tingkat | Solusi & Strategi Mitigasi (Low-Dependency) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Agil -> Yudha** | `StatusBadge.tsx` & `ConfirmationModal.tsx` | *Shared Atom UI* | **Rendah** | Yudha menyelesaikan Task Y1 (Shared Atoms) di jam pertama. Sebelum atom siap, Agil dapat menggunakan `Text` atau `View` sederhana sebagai *placeholder* tanpa terhenti. |
+| **Zufar -> Yudha** | `Session` Data & Status Sesi | *Data Contract* | **Nol (Telah Dimigrasi)** | Zufar membaca tipe `Session` langsung dari `src/types/session.ts` yang sudah terkunci di awal, bukan dari kode Yudha. |
+| **Zufar -> Agil** | `AttendanceRecord` Data | *Data Contract* | **Nol (Telah Dimigrasi)** | Zufar menggunakan tipe `AttendanceRecord` dari `src/types/attendance.ts` dan mock data `INITIAL_ATTENDANCES`. Zufar tidak perlu menunggu form presensi Agil selesai untuk membangun layar rekapitulasi. |
+| **Semua -> Yudha** | `LabSyncContext.tsx` / Root State | *State Integration* | **Sedang (Fase Akhir)** | Selama masa pengerjaan, masing-masing programmer mengelola *local state* di layarnya sendiri. Penggabungan ke *shared context* dilakukan pada **Tahap Integrasi Akhir** dipimpin oleh Yudha. |
 
-export interface UserProfile {
-  id: string;
-  name: string;
-  identifier: string; // NIP/NIM
-  role: UserRole;
-  className?: string; // Khusus praktikan, contoh: 'IF-3A'
-}
+---
+
+## 3. Matriks Kepemilikan Berkas (*File Ownership Matrix*)
+
+Setiap programmer bertanggung jawab penuh atas berkas-berkas berikut:
+
 ```
-
-### 3.2 Sesi Praktikum (`src/types/session.ts`)
-```typescript
-export type SessionStatus = 'TERJADWAL' | 'DIBUKA' | 'SELESAI';
-
-export interface Session {
-  id: string;
-  courseName: string;   // Contoh: 'Pemrograman Mobile'
-  className: string;    // Contoh: 'IF-3A'
-  labRoom: string;      // Contoh: 'Lab Multimedia 2'
-  startTime: string;    // Contoh: '08:00'
-  endTime: string;      // Contoh: '10:00'
-  date: string;         // Contoh: '2026-10-22'
-  status: SessionStatus;
-  assistantName: string;
-}
-```
-
-### 3.3 Presensi Kehadiran (`src/types/attendance.ts`)
-```typescript
-export interface AttendanceRecord {
-  id: string;
-  sessionId: string;
-  studentId: string;    // NIM praktikan
-  studentName: string;
-  className: string;
-  checkInTime: string;  // Contoh: '08:15:22'
-  notes?: string;       // Catatan opsional (misal: 'PC 14')
-}
-```
-
-### 3.4 Data Dummy Bersama (`src/constants/dummy-data.ts`)
-```typescript
-import { Session } from '../types/session';
-import { UserProfile } from '../types/user';
-import { AttendanceRecord } from '../types/attendance';
-
-export const DUMMY_USERS: UserProfile[] = [
-  { id: 'u1', name: 'Yudha Pratama', identifier: 'AST-001', role: 'ASISTEN' },
-  { id: 'u2', name: 'Agil Saputra', identifier: '123210001', role: 'PRAKTISAN', className: 'IF-3A' },
-  { id: 'u3', name: 'Zufar Ramadhan', identifier: '123210002', role: 'PRAKTISAN', className: 'IF-3A' },
-];
-
-export const INITIAL_SESSIONS: Session[] = [
-  {
-    id: 'ses-1',
-    courseName: 'Pemrograman Mobile',
-    className: 'IF-3A',
-    labRoom: 'Lab Rekayasa Perangkat Lunak',
-    startTime: '08:00',
-    endTime: '10:00',
-    date: '2026-10-22',
-    status: 'TERJADWAL',
-    assistantName: 'Yudha Pratama',
-  },
-  {
-    id: 'ses-2',
-    courseName: 'Basis Data Lanjut',
-    className: 'SI-3B',
-    labRoom: 'Lab Basis Data',
-    startTime: '10:30',
-    endTime: '12:30',
-    date: '2026-10-22',
-    status: 'DIBUKA',
-    assistantName: 'Yudha Pratama',
-  },
-];
-
-export const INITIAL_ATTENDANCES: AttendanceRecord[] = [
-  {
-    id: 'att-1',
-    sessionId: 'ses-2',
-    studentId: '123210001',
-    studentName: 'Agil Saputra',
-    className: 'IF-3A',
-    checkInTime: '10:35:10',
-    notes: 'PC-08',
-  },
-];
+src/
+├── types/                           # [SHARED CONTRACTS - FREEZE]
+│   ├── user.ts                      # Kontrak UserProfile & UserRole (Yudha)
+│   ├── session.ts                   # Kontrak Session & SessionStatus (Yudha)
+│   └── attendance.ts                # Kontrak AttendanceRecord (Agil)
+├── constants/
+│   └── dummy-data.ts                # [SHARED SEED DATA] (Bersama)
+├── components/
+│   ├── common/                      # [SHARED ATOMS]
+│   │   ├── StatusBadge.tsx          # Milik YUDHA
+│   │   ├── ConfirmationModal.tsx    # Milik YUDHA
+│   │   ├── RoleSwitcher.tsx         # Milik YUDHA
+│   │   └── EmptyState.tsx           # Milik ZUFAR
+│   ├── asisten/                     # [MODUL ASISTEN]
+│   │   ├── SessionCard.tsx          # Milik YUDHA
+│   │   └── SessionControlAction.tsx # Milik YUDHA
+│   ├── praktikan/                   # [MODUL PRAKTISAN]
+│   │   ├── SessionPraktikanCard.tsx # Milik AGIL
+│   │   ├── AttendanceFormModal.tsx  # Milik AGIL
+│   │   └── AttendanceFeedbackModal.tsx # Milik AGIL
+│   └── rekap/                       # [MODUL REKAPITULASI]
+│       ├── AttendanceListItem.tsx   # Milik ZUFAR
+│       └── AttendanceSummaryCard.tsx# Milik ZUFAR
+└── app/                             # [EXPO ROUTER SCREENS]
+    ├── _layout.tsx                  # Root Shell & Provider (YUDHA)
+    ├── index.tsx                    # Beranda & Jadwal (YUDHA)
+    ├── rekap/
+    │   └── [id].tsx                 # Layar Rekap Asisten (ZUFAR)
+    └── history.tsx                  # Layar Riwayat Praktikan (ZUFAR)
 ```
 
 ---
 
-## 4. Pembagian Jobdesk & Rincian Tugas Programmer
+## 4. Pembagian Tugas Rinci Programmer (Jobdesk)
 
-### 👨‍💻 Programmer 1: Yudha
-**Peran:** *Lead Shell, Shared Atoms & Asisten Session Control*
-**Tanggung Jawab:**
-Menyiapkan dasar navigasi, pemilih peran (*Role Switcher*), komponen atom visual bersama, serta seluruh interaksi sisi Asisten untuk membuka dan menutup sesi praktikum.
-
-#### Daftar Tugas Yudha:
-- [ ] **Task Y1 (Kontrak & Shared Atoms)**:
-  - Buat `src/types/user.ts` dan `src/types/session.ts`.
-  - Buat `src/components/common/StatusBadge.tsx`: Badge visual dengan warna adaptif (`TERJADWAL` abu-abu, `DIBUKA` hijau, `SELESAI` merah).
-  - Buat `src/components/common/ConfirmationModal.tsx`: Modal pop-up dengan judul, pesan konfirmasi, tombol 'Batal', dan tombol aksi berwarna tegas.
-- [ ] **Task Y2 (Role Switcher)**:
-  - Buat `src/components/common/RoleSwitcher.tsx`: Komponen segmented button / pill toggle di bagian atas untuk beralih antara peran **Asisten** dan **Praktikan**, serta memilih akun praktikan aktif (Agil / Zufar).
-- [ ] **Task Y3 (Jadwal & Kontrol Sesi Asisten)**:
-  - Buat `src/components/asisten/SessionCard.tsx`: Kartu jadwal praktikum berisi nama mata kuliah, kelas, lab, waktu, dan status.
-  - Buat `src/components/asisten/SessionControlAction.tsx`: Tombol aksi buka sesi (jika terjadwal) dan tutup sesi (jika dibuka). Menampilkan `ConfirmationModal` sebelum mengubah state sesi.
-- [ ] **Task Y4 (Halaman Utama Dashboard)**:
-  - Perbarui `src/app/index.tsx`: Menampilkan header aplikasi, `RoleSwitcher`, dan daftar sesi praktikum. Jika peran aktif adalah Asisten, tampilkan tombol kontrol sesi dan tombol menuju halaman rekap.
-
----
-
-### 👨‍💻 Programmer 2: Agil
-**Peran:** *Praktikan Experience, Form Presensi, & Validasi Anti-Ganda*
-**Tanggung Jawab:**
-Membangun antarmuka presensi praktikan, menangani formulir input kehadiran dengan `useState`, mencegah presensi ganda, serta menampilkan modal feedback konfirmasi presensi berhasil.
-
-#### Daftar Tugas Agil:
-- [ ] **Task A1 (Kontrak Kehadiran)**:
-  - Buat `src/types/attendance.ts`.
-- [ ] **Task A2 (Tampilan Sesi Praktikan)**:
-  - Buat `src/components/praktikan/SessionPraktikanCard.tsx`: Kartu sesi praktikum khusus perspektif praktikan dengan status sesi dan tombol "Lakukan Presensi".
-  - Berikan aturan kondisional: Tombol hanya dapat diklik jika status sesi `DIBUKA`. Jika `TERJADWAL` atau `SELESAI`, tombol dalam kondisi *disabled* dengan label keterangan.
-- [ ] **Task A3 (Formulir Presensi Modal)**:
-  - Buat `src/components/praktikan/AttendanceFormModal.tsx`:
-    - Menggunakan `TextInput` untuk input NIM, Nama Lengkap, dan Catatan (nomor meja/PC).
-    - Nilai default dapat terisi otomatis sesuai profil praktikan aktif.
-    - Menggunakan Flexbox & StyleSheet untuk tata letak formulir yang rapi.
-- [ ] **Task A4 (Validasi Anti-Ganda & Feedback Modal)**:
-  - Implementasikan pengecekan validasi: Jika mahasiswa dengan NIM tersebut sudah ada di daftar presensi sesi tersebut, tampilkan pesan peringatan ramah: *"Anda sudah melakukan presensi pada sesi ini sebelumnya!"*.
-  - Buat `src/components/praktikan/AttendanceFeedbackModal.tsx`: Modal ucapan selamat bahwa presensi berhasil, memuat nama mahasiswa, sesi, dan jam presensi tercatat.
-- [ ] **Task A5 (Layar Presensi Praktikan)**:
-  - Buat/hubungkan ke `src/app/praktikan/presensi.tsx` atau trigger langsung via modal di kartu praktikan pada `src/app/index.tsx`.
+### 👨‍💻 Programmer 1: Yudha (Lead Shell & Asisten Control)
+- **Fokus Utama**: Arsitektur navigasi root, komponen pemilihan peran (*Role Switcher*), komponen atom bersama, dan kontrol sesi praktikum sisi Asisten.
+- **Ketergantungan**: Rendah. Bertindak sebagai penyedia fondasi awal.
+- **Daftar Tugas**:
+  - [ ] **Task Y1 (Kontrak Dasar & Shared Atoms)**:
+    - Verifikasi file `src/types/user.ts` dan `src/types/session.ts`.
+    - Buat `src/components/common/StatusBadge.tsx`: Badge visual adaptif (`TERJADWAL` abu-abu, `DIBUKA` hijau, `SELESAI` merah).
+    - Buat `src/components/common/ConfirmationModal.tsx`: Modal pop-up dengan judul, pesan konfirmasi aksi, tombol batal, dan tombol eksekusi berwarna tegas.
+    - *Beri tahu Agil & Zufar setelah Task Y1 selesai.*
+  - [ ] **Task Y2 (Role & Identity Switcher)**:
+    - Buat `src/components/common/RoleSwitcher.tsx`:
+      - Segmented toggle peran: `Asisten` vs `Praktikan`.
+      - Dropdown/pilihan identitas dummy praktikan aktif (Agil vs Zufar).
+  - [ ] **Task Y3 (Manajemen Sesi Asisten)**:
+    - Buat `src/components/asisten/SessionCard.tsx`: Kartu sesi memuat info mata kuliah, kelas, lab, jam, dan status badge.
+    - Buat `src/components/asisten/SessionControlAction.tsx`: Tombol aksi "Buka Sesi" (jika terjadwal) dan "Tutup Sesi" (jika dibuka) yang memanggil `ConfirmationModal`.
+  - [ ] **Task Y4 (Layar Beranda & Root Navigation)**:
+    - Sempurnakan `src/app/_layout.tsx` dan `src/app/index.tsx`.
+    - Tampilkan header dengan `RoleSwitcher` dan daftar sesi praktikum.
+    - Sediakan tombol navigasi menuju rekapitulasi bagi Asisten.
 
 ---
 
-### 👨‍💻 Programmer 3: Zufar
-**Peran:** *Rekapitulasi Kehadiran Asisten, Riwayat Praktikan & Empty States*
-**Tanggung Jawab:**
-Membangun antarmuka rekapitulasi kehadiran untuk asisten (siapa saja yang sudah presensi beserta jamnya), riwayat kehadiran pribadi untuk praktikan, dan tampilan ketika data kosong (*empty state*).
-
-#### Daftar Tugas Zufar:
-- [ ] **Task Z1 (Universal Empty State)**:
-  - Buat `src/components/common/EmptyState.tsx`: Komponen visual reusable untuk menampilkan teks instruktif ketika data masih kosong (contoh: *"Belum ada mahasiswa yang melakukan presensi"*, atau *"Belum ada riwayat presensi"*).
-- [ ] **Task Z2 (Item & Rekapitulasi Kehadiran Sisi Asisten)**:
-  - Buat `src/components/rekap/AttendanceListItem.tsx`: Komponen item baris/kartu presensi memuat Avatar inisial nama, Nama Lengkap, NIM, Waktu Check-in, dan nomor PC/catatan.
-  - Buat `src/components/rekap/AttendanceSummaryCard.tsx`: Kartu ringkasan metrik (misal: Total Mahasiswa Hadir: 18).
-- [ ] **Task Z3 (Layar Rekapitulasi Sesi)**:
-  - Buat `src/app/rekap/[id].tsx`:
-    - Menampilkan detail informasi sesi praktikum di bagian header.
-    - Menampilkan daftar mahasiswa yang hadir menggunakan `FlatList` / `ScrollView`.
-    - Jika list masih kosong, panggil `EmptyState.tsx`.
-    - Tombol kembali ke halaman utama.
-- [ ] **Task Z4 (Layar Riwayat Kehadiran Pribadi Praktikan)**:
-  - Buat `src/app/history.tsx`:
-    - Menampilkan riwayat daftar sesi yang pernah diikuti oleh praktikan yang sedang aktif.
-    - Menampilkan status kehadiran (Hadir pada jam sekian / Tidak Hadir).
+### 👨‍💻 Programmer 2: Agil (Praktikan Experience & Presensi Anti-Ganda)
+- **Fokus Utama**: Antarmuka sesi praktikan, modal form presensi mandiri, validasi pencegahan presensi ganda, dan feedback konfirmasi kehadiran.
+- **Ketergantungan**:
+  - *Dependensi ke Yudha*: Menggunakan `StatusBadge.tsx` jika sudah siap. Jika belum siap, gunakan `View` dan `Text` sementara agar pengerjaan tidak terhenti.
+- **Daftar Tugas**:
+  - [ ] **Task A1 (Kontrak Presensi)**:
+    - Verifikasi `src/types/attendance.ts` (`AttendanceRecord` & `AttendancePayload`).
+  - [ ] **Task A2 (Kartu Sesi Praktikan)**:
+    - Buat `src/components/praktikan/SessionPraktikanCard.tsx`:
+      - Menampilkan informasi sesi praktikum dari sudut pandang mahasiswa.
+      - Logika tombol "Lakukan Presensi":
+        - Aktif jika status sesi `DIBUKA` dan praktikan belum presensi.
+        - Non-aktif (*disabled*) jika status `TERJADWAL` (label: *"Sesi Belum Dibuka"*).
+        - Non-aktif (*disabled*) jika status `SELESAI` (label: *"Sesi Selesai"*).
+        - Label *"Sudah Presensi"* (warna hijau) jika mahasiswa sudah tercatat hadir pada sesi tersebut.
+  - [ ] **Task A3 (Formulir Presensi Modal)**:
+    - Buat `src/components/praktikan/AttendanceFormModal.tsx`:
+      - Modal form dengan input: NIM, Nama Mahasiswa (terisi otomatis dari identitas aktif), dan Catatan Opsional (nomor meja/PC).
+      - Validasi input tidak boleh kosong.
+      - Tata letak menggunakan Flexbox & StyleSheet.
+  - [ ] **Task A4 (Validasi Anti-Ganda & Feedback Modal)**:
+    - Implementasikan pengecekan validasi: Jika mahasiswa dengan NIM tersebut sudah presensi pada sesi terpilih, cegah pengiriman dan tampilkan alert ramah.
+    - Buat `src/components/praktikan/AttendanceFeedbackModal.tsx`: Modal sukses berisi ucapan selamat, stempel jam presensi, dan tombol tutup.
 
 ---
 
-## 5. Alur Integrasi & Skenario Uji Demonstrasi (End-to-End Demo)
+### 👨‍💻 Programmer 3: Zufar (Rekapitulasi Kehadiran & Riwayat)
+- **Fokus Utama**: Tampilan rekapitulasi daftar hadir per sesi untuk asisten, layar riwayat kehadiran pribadi untuk praktikan, dan komponen penanganan data kosong (*Empty State*).
+- **Ketergantungan**:
+  - *Dependensi ke Agil*: Membutuhkan tipe data `AttendanceRecord`. Sudah terisolasi karena kontrak tipe data sudah disepakati di `src/types/attendance.ts`.
+  - *Dependensi ke Yudha*: Komponen `EmptyState.tsx` dibuat mandiri oleh Zufar, sehingga Zufar dapat bekerja 100% independen tanpa menunggu Yudha.
+- **Daftar Tugas**:
+  - [ ] **Task Z1 (Universal Empty State Component)**:
+    - Buat `src/components/common/EmptyState.tsx`: Komponen fleksibel memuat ikon, judul pesan kosong, dan teks instruksi (contoh: *"Belum ada mahasiswa yang hadir"*).
+    - Komponen ini dapat dipakai bersama oleh seluruh anggota tim.
+  - [ ] **Task Z2 (Item & Metrik Rekapitulasi Sisi Asisten)**:
+    - Buat `src/components/rekap/AttendanceListItem.tsx`: Kartu baris mahasiswa menampilkan avatar inisial, Nama Lengkap, NIM, Waktu Check-in, dan Catatan PC.
+    - Buat `src/components/rekap/AttendanceSummaryCard.tsx`: Kartu ringkasan metrik (misal: *"Total Hadir: 1 Mahasiswa"*).
+  - [ ] **Task Z3 (Layar Rekapitulasi Sesi Asisten)**:
+    - Buat `src/app/rekap/[id].tsx`:
+      - Header detail sesi (nama praktikum, kelas, ruang lab, asisten).
+      - `FlatList` / `ScrollView` daftar mahasiswa hadir menggunakan `AttendanceListItem`.
+      - Tampilkan `EmptyState` jika daftar hadir masih kosong (0 mahasiswa).
+      - Tombol kembali ke halaman utama (*Back navigation*).
+  - [ ] **Task Z4 (Layar Catatan Riwayat Praktikan)**:
+    - Buat `src/app/history.tsx`:
+      - Menampilkan daftar kehadiran khusus untuk praktikan yang sedang aktif.
+      - Menampilkan tanggal, jam presensi, dan status kehadiran.
 
-Setelah masing-masing programmer menyelesaikan tugasnya, uji skenario berikut bersama:
+---
 
+## 5. Prosedur Integrasi Tanpa Hambatan (Integration Protocol)
+
+Setelah seluruh programmer menyelesaikan komponen mandirinya, ikuti 3 langkah integrasi berikut:
+
+```mermaid
+flowchart TD
+    subgraph Fase_1_Independen["Fase 1: Pengerjaan Mandiri (Low-Dependency)"]
+        Y1["Yudha: Atoms & Asisten Cards"]
+        A1["Agil: Form Presensi & Modal"]
+        Z1["Zufar: Rekap Screen & EmptyState"]
+    end
+
+    subgraph Fase_2_Wiring["Fase 2: State Wiring & Assembly"]
+        Provider["Yudha: Pasang In-Memory Context di _layout.tsx"]
+        WireA["Agil & Yudha: Hubungkan Action Presensi di Index"]
+        WireZ["Zufar: Hubungkan Data Sesi & Rekap ke Context"]
+    end
+
+    subgraph Fase_3_Testing["Fase 3: Quality Gate & Demo"]
+        Typecheck["npx tsc --noEmit (0 Errors)"]
+        Lint["npx expo lint (0 Errors)"]
+        Demo["Demo 5 Langkah Alur Sesi"]
+    end
+
+    Fase_1_Independen --> Fase_2_Wiring
+    Fase_2_Wiring --> Fase_3_Testing
 ```
-[Langkah 1: Yudha]
-Pilih Peran: ASISTEN
-Pilih Sesi 'Pemrograman Mobile' (Status Awal: TERJADWAL)
-Klik 'Buka Sesi' -> Konfirmasi Modal -> Status berubah jadi 'DIBUKA'
 
-[Langkah 2: Agil]
-Beralih Peran: PRAKTISAN (Akun: Agil)
-Lihat Sesi 'Pemrograman Mobile' (Status terlihat: DIBUKA)
-Klik 'Lakukan Presensi' -> Isi form (PC-04) -> Submit
-Feedback Modal muncul: 'Presensi Berhasil jam 08:15:00'
-Coba submit presensi kembali dengan akun Agil -> Ditolak: 'Sudah Presensi'
-
-[Langkah 3: Zufar]
-Beralih Peran: ASISTEN
-Klik menu 'Rekap Kehadiran' pada sesi 'Pemrograman Mobile'
-Daftar menampilkan: 'Agil Saputra - 123210001 - 08:15:00 - PC-04'
-Total Hadir tercatat: 1
-
-[Langkah 4: Yudha]
-Asisten klik 'Tutup Sesi' -> Konfirmasi Modal -> Status berubah jadi 'SELESAI'
-
-[Langkah 5: Zufar & Agil]
-Beralih Peran: PRAKTISAN (Akun: Agil)
-Buka menu 'Catatan Kehadiran Saya' -> Status sesi 'Pemrograman Mobile' tertera 'Hadir'
-Tombol 'Lakukan Presensi' pada sesi tersebut kini terkunci/disabled
-```
+### Langkah Uji Alur Demonstrasi 5 Tahap:
+1. **Langkah 1 (Asisten)**: Beralih ke peran *Asisten* -> Pilih sesi 'Pemrograman Mobile' (`TERJADWAL`) -> Klik *Buka Sesi* -> Konfirmasi -> Status berubah jadi `DIBUKA`.
+2. **Langkah 2 (Praktikan)**: Beralih ke peran *Praktikan (Agil)* -> Klik *Lakukan Presensi* -> Isi form -> Submit -> Modal sukses muncul dengan stempel jam.
+3. **Langkah 3 (Validasi Anti-Ganda)**: Coba kirim presensi lagi dengan akun Agil -> Sistem menolak dan memberitahukan bahwa praktikan sudah hadir.
+4. **Langkah 4 (Asisten Rekap & Tutup)**: Beralih kembali ke *Asisten* -> Buka layar *Rekap Kehadiran* -> Nama Agil terlihat di rekap -> Asisten klik *Tutup Sesi* -> Konfirmasi -> Status berubah jadi `SELESAI`.
+5. **Langkah 5 (Praktikan Riwayat)**: Beralih ke *Praktikan* -> Tombol presensi telah terkunci (*disabled*) -> Buka layar *Riwayat Saya* -> Kehadiran terverifikasi.
 
 ---
 
-## 6. Referensi Teknis Resmi
+## 6. Standar Teknis & Quality Gate
 
-- **React Fundamental & TypeScript**: https://reactnative.dev/docs/intro-react?language=typescript&guide=android
-- **Flexbox Layout Guide**: https://reactnative.dev/docs/flexbox?language=javascript
-- **TextInput & useState Handling**: https://reactnative.dev/docs/handling-text-input
-- **React Native Modal Component**: https://reactnative.dev/docs/modal
-- **StyleSheet Styling**: https://reactnative.dev/docs/style
-- **Expo Router Navigation Tutorial**: https://docs.expo.dev/tutorial/add-navigation/
-
----
-
-## 7. Checklist Validasi & Quality Gate Sprint 1
-
-Sebelum menyatakan Sprint 1 selesai, seluruh tim wajib menjalankan:
-1. `npx tsc --noEmit` : Memastikan tidak ada kesalahan tipe data TypeScript.
-2. `npx expo lint` : Memastikan kode bersih dan mematuhi linting.
-3. `npx expo start` : Menjalankan demo antarmuka dan memvalidasi alur demo kelima langkah di atas.
+Sebelum menyatakan tugas selesai, setiap programmer wajib memverifikasi:
+1. Tidak ada hardcoded style inline berulang; gunakan `StyleSheet.create`.
+2. Gunakan Flexbox murni (`flex`, `flexDirection`, `justifyContent`, `alignItems`).
+3. Jalankan typecheck: `npx tsc --noEmit`.
+4. Jalankan linter: `npx expo lint`.
