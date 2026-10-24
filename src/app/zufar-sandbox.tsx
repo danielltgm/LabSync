@@ -17,6 +17,7 @@ export default function ZufarSandbox() {
         <RoleSwitcher activeRole={activeRole} students={users} activeStudentId={activeStudentId}
           onRoleChange={setRole} onStudentChange={selectStudent} />
         <View style={styles.links}>
+          <Link href="/history" style={styles.link}>Riwayat Saya</Link>
           {sessions.map((session) => (
             <Link key={session.id} href={{ pathname: '/rekap/[id]', params: { id: session.id } }} style={styles.link}>
               Rekap {session.courseName}
