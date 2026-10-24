@@ -9,9 +9,9 @@ export function AttendanceScreenHeader({ title, onBack, notice }: {
 }) {
   return (
     <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Kembali ke beranda" onPress={onBack}
+      <Pressable accessibilityRole="button" accessibilityLabel="Kembali" onPress={onBack}
         style={({ pressed }) => [styles.back, pressed && styles.pressed]}>
-        <Text style={styles.backLabel}>Kembali ke beranda</Text>
+        <Text style={styles.backLabel}>Kembali</Text>
       </Pressable>
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
       {notice && <Text style={styles.notice}>{notice}</Text>}
