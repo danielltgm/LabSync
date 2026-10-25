@@ -51,7 +51,7 @@ export function SessionPraktikanCard({
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
-        <Text style={styles.courseName}>{session.courseName}</Text>
+        <Text accessibilityRole="header" style={styles.courseName}>{session.courseName}</Text>
         <StatusBadge status={session.status} />
       </View>
 
@@ -99,12 +99,14 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 8,
   },
   courseName: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 180,
     fontSize: 20,
     fontWeight: '600',
     lineHeight: 28,
@@ -121,7 +123,8 @@ const styles = StyleSheet.create({
     color: '#475569',
   },
   buttonBase: {
-    height: 48,
+    minHeight: 48,
+    padding: 12,
     borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',

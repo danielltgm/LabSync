@@ -3,6 +3,7 @@ export const LabSyncColors = {
   primary: '#2563EB',
   primarySurface: '#EFF6FF',
   surface: '#FFFFFF',
+  background: '#F8FAFC',
   text: '#0F172A',
   textSecondary: '#475569',
   borderDark: '#CBD5E1',
@@ -31,7 +32,9 @@ export const LabSyncRadii = {
 } as const;
 
 export const LabSyncTypography = {
+  title: { fontSize: 24, fontWeight: '700', lineHeight: 32 },
   heading: { fontSize: 20, fontWeight: '600', lineHeight: 28 },
+  section: { fontSize: 16, fontWeight: '600', lineHeight: 24 },
   body: { fontSize: 14, fontWeight: '400', lineHeight: 20 },
   button: { fontSize: 14, fontWeight: '500', lineHeight: 20 },
   caption: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
