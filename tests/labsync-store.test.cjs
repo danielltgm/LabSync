@@ -61,3 +61,73 @@ test('empty seeds are safe and cannot invent an assistant identity', () => {
   assert.equal(labSyncReducer(state, { type: 'set_role', role: 'ASISTEN' }), state);
   assert.equal(labSyncReducer(state, { type: 'open_session', sessionId: 'mobile' }), state);
 });
+
+const payload = { sessionId: 'mobile', studentId: '001', studentName: 'Agil', className: 'IF-3A', notes: ' PC-14 ' };
+const checkIn = (state, values = payload, checkInTime = '08:15:22') =>
+  labSyncReducer(state, { type: 'check_in', payload: values, checkInTime });
+function readyStudent() {
+  const opened = labSyncReducer(initial(), { type: 'open_session', sessionId: 'mobile' });
+  return labSyncReducer(opened, { type: 'set_role', role: 'PRAKTISAN' });
+}
+
+test('check-in updates shared attendance with canonical identity and time, without mutating seeds', () => {
+  const state = readyStudent();
+  const checked = checkIn(state);
+  assert.equal(checked.checkInResult.kind, 'success');
+  assert.equal(checked.attendances.length, 1);
+  assert.equal(checked.attendances[0].studentName, 'Agil');
+  assert.equal(checked.attendances[0].notes, 'PC-14');
+  assert.equal(checked.attendances[0].checkInTime, '08:15:22');
+  assert.equal(state.attendances.length, 0);
+});
+
+test('repeated submits and whitespace variants cannot add duplicate attendance', () => {
+  const first = checkIn(readyStudent());
+  const second = checkIn(first, { ...payload, studentId: ' 001 ' }, '08:15:23');
+  assert.equal(second.attendances.length, 1);
+  assert.equal(second.checkInResult.kind, 'duplicate');
+  assert.equal(second.checkInResult.attendance.checkInTime, '08:15:22');
+});
+
+test('attendance is isolated by both student and session', () => {
+  let state = checkIn(readyStudent());
+  state = labSyncReducer(state, { type: 'select_student', studentId: 'zufar' });
+  state = checkIn(state, { ...payload, studentId: '002', studentName: 'Zufar' });
+  assert.equal(state.attendances.length, 2);
+  assert.equal(state.checkInResult.kind, 'success');
+  const another = { ...sessions[0], id: 'database', status: 'DIBUKA' };
+  state = { ...state, sessions: [...state.sessions, another] };
+  state = checkIn(state, { ...payload, sessionId: 'database', studentId: '002', studentName: 'Zufar' });
+  assert.equal(state.attendances.length, 3);
+});
+
+test('assistant, wrong identity, scheduled and closed-session check-ins are rejected', () => {
+  assert.equal(checkIn(initial()).checkInResult.kind, 'error');
+  assert.equal(checkIn(readyStudent(), { ...payload, studentId: '002', studentName: 'Zufar' }).attendances.length, 0);
+  assert.equal(checkIn(readyStudent(), { ...payload, sessionId: 'missing' }).checkInResult.kind, 'error');
+  const scheduled = labSyncReducer(initial(), { type: 'set_role', role: 'PRAKTISAN' });
+  assert.equal(checkIn(scheduled).attendances.length, 0);
+  let closed = labSyncReducer(initial(), { type: 'open_session', sessionId: 'mobile' });
+  closed = labSyncReducer(closed, { type: 'close_session', sessionId: 'mobile' });
+  closed = labSyncReducer(closed, { type: 'set_role', role: 'PRAKTISAN' });
+  assert.equal(checkIn(closed).checkInResult.kind, 'error');
+  assert.equal(checkIn(closed).attendances.length, 0);
+});
+
+test('invalid form values and timestamps never create a record', () => {
+  for (const values of [
+    { ...payload, studentId: '' }, { ...payload, studentId: 'abc' },
+    { ...payload, studentName: '' }, { ...payload, notes: 'x'.repeat(51) },
+  ]) assert.equal(checkIn(readyStudent(), values).checkInResult.kind, 'error');
+  assert.equal(checkIn(readyStudent(), payload, '25:61:00').checkInResult.kind, 'error');
+});
+
+test('role/identity changes clear feedback and preserve recorded attendance', () => {
+  let state = checkIn(readyStudent());
+  state = labSyncReducer(state, { type: 'select_student', studentId: 'zufar' });
+  assert.equal(state.checkInResult, null);
+  assert.equal(state.attendances.length, 1);
+  state = labSyncReducer(state, { type: 'set_role', role: 'ASISTEN' });
+  assert.equal(state.attendances[0].studentId, '001');
+  assert.equal(state.checkInResult, null);
+});
