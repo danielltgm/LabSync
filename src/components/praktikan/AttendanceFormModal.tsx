@@ -1,24 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import type { AttendancePayload } from '@/types/attendance';
 
-export interface AttendanceFormPayload {
-  sessionId: string;
-  studentId: string;
-  studentName: string;
-  className: string;
-  notes?: string;
-}
+export type AttendanceFormPayload = AttendancePayload;
 
 export interface AttendanceFormModalProps {
   visible: boolean;
@@ -27,19 +24,26 @@ export interface AttendanceFormModalProps {
   className?: string;
   initialStudentId?: string;
   initialStudentName?: string;
+  identityLocked?: boolean;
   onClose: () => void;
   onSubmit: (payload: AttendanceFormPayload) => void;
 }
 
 type FocusedField = 'nim' | 'name' | 'notes' | null;
 
-export function AttendanceFormModal({
+export function AttendanceFormModal(props: AttendanceFormModalProps) {
+  if (!props.visible) return null;
+  return <AttendanceFormContent key={`${props.sessionId}:${props.initialStudentId}:${props.initialStudentName}`} {...props} />;
+}
+
+function AttendanceFormContent({
   visible,
   sessionId,
   courseName,
   className = '',
   initialStudentId = '',
   initialStudentName = '',
+  identityLocked = false,
   onClose,
   onSubmit,
 }: AttendanceFormModalProps) {
@@ -49,16 +53,6 @@ export function AttendanceFormModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setStudentId(initialStudentId);
-      setStudentName(initialStudentName);
-      setNotes('');
-      setErrorMessage(null);
-      setIsSubmitting(false);
-    }
-  }, [visible, initialStudentId, initialStudentName]);
 
   const handleSubmit = () => {
     if (isSubmitting) return;
@@ -95,13 +89,15 @@ export function AttendanceFormModal({
       animationType="fade"
       onRequestClose={onClose}
     >
+      <SafeAreaView style={styles.safeArea}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView
           style={styles.backdrop}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
+          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
           <View style={styles.card}>
-            <Text style={styles.title}>Formulir Presensi Praktikum</Text>
+            <Text accessibilityRole="header" style={styles.title}>Formulir Presensi Praktikum</Text>
             <Text style={styles.subtitle}>
               {courseName
                 ? `${courseName}${className ? ` • ${className}` : ''}`
@@ -111,6 +107,8 @@ export function AttendanceFormModal({
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>NIM Mahasiswa *</Text>
               <TextInput
+                accessibilityLabel="NIM Mahasiswa"
+                readOnly={identityLocked}
                 value={studentId}
                 onChangeText={(val) => {
                   setStudentId(val);
@@ -133,6 +131,8 @@ export function AttendanceFormModal({
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Nama Lengkap Mahasiswa *</Text>
               <TextInput
+                accessibilityLabel="Nama Lengkap Mahasiswa"
+                readOnly={identityLocked}
                 value={studentName}
                 onChangeText={(val) => {
                   setStudentName(val);
@@ -153,6 +153,8 @@ export function AttendanceFormModal({
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Catatan / Nomor PC (Opsional)</Text>
               <TextInput
+                accessibilityLabel="Catatan atau nomor PC"
+                maxLength={50}
                 value={notes}
                 onChangeText={setNotes}
                 onFocus={() => setFocusedField('notes')}
@@ -212,22 +214,27 @@ export function AttendanceFormModal({
               </Pressable>
             </View>
           </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)' },
+  scrollArea: { width: '100%', flexGrow: 0, maxHeight: '100%' },
+  scrollContent: { alignItems: 'center' },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
   },
   card: {
     width: '88%',
+    maxWidth: 480,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,

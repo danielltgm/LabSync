@@ -1,5 +1,6 @@
 import React from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export interface AttendanceFeedbackData {
   sessionId: string;
@@ -48,7 +49,8 @@ export function AttendanceFeedbackModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <View style={styles.backdrop}>
+      <SafeAreaView style={styles.backdrop}>
+        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <View
             style={[
@@ -66,7 +68,7 @@ export function AttendanceFeedbackModal({
             </Text>
           </View>
 
-          <Text style={styles.title}>
+            <Text accessibilityRole="header" style={styles.title}>
             {isDuplicate ? 'Presensi Ditolak' : 'Presensi Berhasil Dicatat!'}
           </Text>
 
@@ -74,7 +76,7 @@ export function AttendanceFeedbackModal({
             {isDuplicate
               ? `Anda sudah melakukan presensi pada sesi ini sebelumnya${
                   attendance?.checkInTime
-                    ? ` pada pukul ${attendance.checkInTime} WIB.`
+                    ? ` pada pukul ${attendance.checkInTime}.`
                     : '!'
                 }`
               : 'Kehadiran Anda telah berhasil tersimpan pada sesi praktikum ini.'}
@@ -99,7 +101,7 @@ export function AttendanceFeedbackModal({
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Jam Presensi</Text>
                 <Text style={[styles.summaryValue, styles.timeBadge]}>
-                  {attendance.checkInTime} WIB
+                  {attendance.checkInTime}
                 </Text>
               </View>
 
@@ -127,12 +129,15 @@ export function AttendanceFeedbackModal({
             </Text>
           </Pressable>
         </View>
-      </View>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollArea: { width: '100%', flexGrow: 0, maxHeight: '100%' },
+  scrollContent: { alignItems: 'center' },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
@@ -142,6 +147,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '88%',
+    maxWidth: 480,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
@@ -231,7 +237,8 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    height: 48,
+    minHeight: 48,
+    padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
