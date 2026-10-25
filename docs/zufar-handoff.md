@@ -1,5 +1,7 @@
 # Zufar: Z1-Z4 Handoff
 
+> historical standalone-stage notes. see [integration-handoff.md](integration-handoff.md) for the connected team flow.
+
 Programmer: Muhammad Hafidh Zufar Dewantara.
 
 Branch: `feat/zufar-recap-history`.
