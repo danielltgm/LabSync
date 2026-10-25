@@ -6,14 +6,14 @@ import { RoleSwitcher } from '@/components/common/RoleSwitcher';
 import { LabSyncColors as colors, LabSyncSpacing as space, LabSyncTypography as type } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
 
-// Isolated entry point until Yudha switches the home links to Zufar's final routes.
+// Optional component navigation sandbox; final routes share the runtime context.
 export default function ZufarSandbox() {
   const { sessions, users, activeRole, activeStudentId, setRole, selectStudent } = useLabSync();
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text accessibilityRole="header" style={styles.title}>Sandbox Zufar</Text>
-        <Text style={styles.body}>Demo mandiri Z1-Z4. Presensi memakai data contoh ERD, bukan hasil kirim formulir. Pilihan peran dan sesi memakai fondasi demo Yudha.</Text>
+        <Text style={styles.body}>Navigasi komponen Z1-Z4. Daftar hadir dan riwayat mengikuti state presensi bersama, termasuk data awal demo.</Text>
         <RoleSwitcher activeRole={activeRole} students={users} activeStudentId={activeStudentId}
           onRoleChange={setRole} onStudentChange={selectStudent} />
         <View style={styles.links}>

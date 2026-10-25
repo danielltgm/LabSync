@@ -1,5 +1,5 @@
-import { IntegrationPreviewScreen } from '@/components/preview/IntegrationPreviewScreen';
+import { Redirect } from 'expo-router';
 
 export default function HistoryPreview() {
-  return <IntegrationPreviewScreen kind="history" />;
+  return <Redirect href="/history" />;
 }

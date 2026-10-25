@@ -1,5 +1,4 @@
-// Read-only ERD sample for Y4 previews, until Agil's attendance store and Zufar's screens are wired.
-// Keep this separate from runtime attendance: opening a session never creates a check-in.
+// Read-only fixture for isolated component tests. App routes use the runtime context.
 export const PREVIEW_ATTENDANCES = [
   {
     id: 'att-001',

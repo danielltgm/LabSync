@@ -6,21 +6,28 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SessionCard } from '@/components/asisten/SessionCard';
 import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 import { RoleSwitcher } from '@/components/common/RoleSwitcher';
+import { EmptyState } from '@/components/common/EmptyState';
+import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
+import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
+import { AttendanceFeedbackModal, isDuplicateAttendance } from '@/components/praktikan/AttendanceFeedbackModal';
 import {
   LabSyncColors as colors,
   LabSyncRadii as radii,
   LabSyncSpacing as space,
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
-import { PREVIEW_ATTENDANCES } from '@/constants/preview-attendance';
 import { useLabSync } from '@/context/LabSyncContext';
 
 export default function HomeScreen() {
   const {
     users, sessions, activeRole, activeStudentId, activeUser,
     setRole, selectStudent, openSession, closeSession,
+    attendances, checkInResult, checkInSession, clearCheckInResult,
   } = useLabSync();
-  const [showAttendanceNotice, setShowAttendanceNotice] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId);
+  const feedback = checkInResult && checkInResult.kind !== 'error' ? checkInResult : null;
+  const dismissAttendance = () => { setSelectedSessionId(null); clearCheckInResult(); };
   const isAssistant = activeRole === 'ASISTEN';
   const visibleSessions = isAssistant
     ? sessions.filter((session) => session.assistantName === activeUser?.name)
@@ -49,8 +56,8 @@ export default function HomeScreen() {
               activeRole={activeRole}
               students={users}
               activeStudentId={activeStudentId}
-              onRoleChange={(role) => { setShowAttendanceNotice(false); setRole(role); }}
-              onStudentChange={(studentId) => { setShowAttendanceNotice(false); selectStudent(studentId); }}
+              onRoleChange={(role) => { dismissAttendance(); setRole(role); }}
+              onStudentChange={(studentId) => { dismissAttendance(); selectStudent(studentId); }}
             />
             <View style={styles.demo}>
               <Text style={styles.demoTitle}>Mode demo · data dummy</Text>
@@ -59,10 +66,10 @@ export default function HomeScreen() {
             {!isAssistant && (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push('/preview/history')}
+                onPress={() => router.push('/history')}
                 style={({ pressed }) => [styles.historyButton, pressed && styles.pressed]}
               >
-                <Text style={styles.linkLabel}>Riwayat Saya · pratinjau</Text>
+                <Text style={styles.linkLabel}>Riwayat Saya</Text>
               </Pressable>
             )}
             <View style={styles.section}>
@@ -75,58 +82,52 @@ export default function HomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text accessibilityElementsHidden style={styles.emptyIcon}>○</Text>
-            <Text style={styles.sectionTitle}>Belum ada jadwal praktikum</Text>
-            <Text style={styles.body}>Jadwal akan muncul di sini saat sesi tersedia.</Text>
-          </View>
+          <EmptyState title="Belum ada jadwal praktikum" description="Jadwal akan muncul di sini saat sesi tersedia." />
         }
-        renderItem={({ item }) => {
-          const alreadyPresent = PREVIEW_ATTENDANCES.some((attendance) =>
-            attendance.sessionId === item.id && attendance.studentId === activeUser?.identifier);
-          const attendanceLabel = item.status === 'SELESAI' ? 'Sesi Selesai'
-            : item.status === 'TERJADWAL' ? 'Sesi Belum Dibuka'
-              : alreadyPresent ? 'Sudah Presensi · data contoh' : 'Lakukan Presensi';
-          const attendanceDisabled = item.status !== 'DIBUKA' || alreadyPresent || !activeUser;
-
-          return (
+        renderItem={({ item }) => isAssistant ? (
             <SessionCard
               session={item}
               role={activeRole}
               onOpenSession={openSession}
               onCloseSession={closeSession}
-              onViewRecap={(id) => router.push({ pathname: '/preview/rekap/[id]', params: { id } })}
-            >
-              {!isAssistant && (
-                <View style={styles.studentPreview}>
-                  <Text style={styles.caption}>Pratinjau praktikan · formulir belum terhubung</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: attendanceDisabled }}
-                    disabled={attendanceDisabled}
-                    onPress={() => setShowAttendanceNotice(true)}
-                    style={({ pressed }) => [
-                      styles.attendanceButton,
-                      attendanceDisabled && styles.disabled,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={[styles.attendanceLabel, attendanceDisabled && styles.disabledLabel]}>{attendanceLabel}</Text>
-                  </Pressable>
-                </View>
-              )}
-            </SessionCard>
-          );
-        }}
+              onViewRecap={(id) => router.push({ pathname: '/rekap/[id]', params: { id } })}
+            />
+          ) : (
+            <SessionPraktikanCard
+              session={item}
+              isAttended={isDuplicateAttendance(attendances, item.id, activeUser?.identifier ?? '')}
+              onPressAttendance={(session) => { clearCheckInResult(); setSelectedSessionId(session.id); }}
+            />
+          )}
+      />
+      {!isAssistant && activeUser && selectedSession && !checkInResult && (
+        <AttendanceFormModal
+          visible={selectedSession.status === 'DIBUKA'}
+          sessionId={selectedSession.id}
+          courseName={selectedSession.courseName}
+          className={selectedSession.className}
+          initialStudentId={activeUser.identifier}
+          initialStudentName={activeUser.name}
+          identityLocked
+          onClose={dismissAttendance}
+          onSubmit={checkInSession}
+        />
+      )}
+      <AttendanceFeedbackModal
+        visible={!isAssistant && feedback !== null}
+        attendance={feedback?.attendance}
+        courseName={sessions.find((session) => session.id === feedback?.attendance.sessionId)?.courseName}
+        isDuplicate={feedback?.kind === 'duplicate'}
+        onClose={dismissAttendance}
       />
       <ConfirmationModal
-        visible={showAttendanceNotice && !isAssistant}
-        title="Form presensi belum terhubung"
-        message="Ini pratinjau jadwal praktikan. Formulir presensi akan tersedia setelah integrasi berikutnya."
+        visible={!isAssistant && checkInResult?.kind === 'error'}
+        title="Presensi belum dapat dicatat"
+        message={checkInResult?.kind === 'error' ? checkInResult.message : ''}
         confirmLabel="Mengerti"
         cancelLabel="Tutup"
-        onCancel={() => setShowAttendanceNotice(false)}
-        onConfirm={() => setShowAttendanceNotice(false)}
+        onCancel={dismissAttendance}
+        onConfirm={dismissAttendance}
       />
     </SafeAreaView>
   );
@@ -156,12 +157,5 @@ const styles = StyleSheet.create({
   sectionTitle: { ...type.section, color: colors.text },
   caption: { ...type.caption, color: colors.textSecondary },
   separator: { height: space.lg },
-  empty: { padding: space.xl, gap: space.sm, backgroundColor: colors.surface, borderRadius: radii.lg },
-  emptyIcon: { fontSize: 48, color: colors.textSecondary },
-  studentPreview: { gap: space.sm },
-  attendanceButton: { minHeight: 48, padding: space.md, borderRadius: radii.md, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  attendanceLabel: { ...type.button, color: colors.surface, textAlign: 'center' },
-  disabled: { backgroundColor: colors.neutral.background },
-  disabledLabel: { color: colors.textSecondary },
   pressed: { opacity: 0.8 },
 });
