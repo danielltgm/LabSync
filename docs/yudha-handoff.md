@@ -1,5 +1,7 @@
 # yudha: y2-y4 handoff
 
+> historical standalone-stage notes. see [integration-handoff.md](integration-handoff.md) for the connected team flow.
+
 ## scope
 
 - y2: controlled role/identity switcher, including a missing-student state.

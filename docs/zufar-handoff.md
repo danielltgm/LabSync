@@ -1,5 +1,7 @@
 # Zufar: Z1-Z4 Handoff
 
+> historical standalone-stage notes. see [integration-handoff.md](integration-handoff.md) for the connected team flow.
+
 Programmer: Muhammad Hafidh Zufar Dewantara.
 
 Branch: `feat/zufar-recap-history`.
@@ -11,11 +13,11 @@ Branch: `feat/zufar-recap-history`.
 - Z3: `src/app/rekap/[id].tsx`, detail sesi, daftar terfilter, empty state, akses asisten sesi, sesi tidak ditemukan, dan navigasi kembali.
 - Z4: `src/app/history.tsx`, riwayat berdasarkan NIM identitas aktif, tanggal sesi, jam presensi, status hadir, dan empty state.
 - Semua komponen presentasi menerima props. Komponen layar ada di `src/components/rekap/`, bukan di direktori route.
-- Integrasi sudah menghubungkan formulir Agil, beranda Yudha, rekap, dan riwayat ke state presensi bersama.
+- Implementasi mandiri sesuai pilihan scope. Belum menghubungkan formulir presensi Agil atau mengubah tautan beranda Yudha.
 
-Dasar pekerjaan mandiri adalah Y4 `db53c89`, termasuk rangkaian PR Y1-Y4 (#4-#7). Kontrak presensi berasal dari PR Agil #1: commit asli `85017f8`, di-cherry-pick menjadi `496e752` dengan author Agil tetap dipertahankan. PR #8 sudah di-merge ke branch Y4, bukan ke `main`.
+Dasar branch adalah Y4 `db53c89`, termasuk rangkaian PR Y1-Y4 (#4-#7). Kontrak presensi berasal dari PR Agil #1: commit asli `85017f8`, di-cherry-pick menjadi `496e752` dengan author Agil tetap dipertahankan. Tidak ada PR tim yang di-merge di GitHub.
 
-Sinkronisasi `origin/main` pada `d86124b` diselesaikan tanpa konflik melalui merge commit terpisah pada branch `feat/zufar-recap-history`. Ketiga komponen Agil dipertahankan dan dihubungkan ke alur bersama. Klaim lama bahwa beranda, context, dan reducer tidak disentuh hanya berlaku untuk pekerjaan mandiri Z1-Z4, bukan integrasi saat ini. PR integrasi ditujukan langsung ke `main`, terpisah dari PR #8 yang masuk ke Y4.
+Tidak ada perubahan pada file milik tim: `_layout.tsx`, `index.tsx`, context, reducer, shared tokens, seed data, role switcher, kontrol sesi, atau komponen Agil. Tidak ada perubahan dependency aplikasi atau lockfile oleh pekerjaan Zufar.
 
 ## Menjalankan Web Tanpa Hot Reload
 
@@ -27,14 +29,15 @@ npx expo export --platform web
 npx expo serve --port 8081
 ```
 
-Buka `http://localhost:8081/`, bukan sandbox. Presensi awal kosong untuk semua identitas.
+Buka `http://localhost:8081/zufar-sandbox` untuk memilih peran, identitas, dan tautan layar Zufar. Sandbox tidak mengganti beranda tim.
 
-- Pilih Praktikan dan identitas aktif, lalu kirim formulir pada sesi `DIBUKA`; hasilnya terlihat di beranda dan `/history` melalui tombol Riwayat Saya.
-- Pilih Asisten, lalu Lihat rekap untuk membuka `/rekap/[id]` dan melihat presensi yang sama. Buka/tutup sesi memakai kontrol Yudha.
-- `/rekap/tidak-ada` menampilkan sesi tidak ditemukan. Direct link `/history` dengan peran awal Asisten menampilkan pembatasan peran.
-- Navigasi dan pergantian peran mempertahankan state dalam memori; reload mengembalikan sesi/identitas awal dan mengosongkan presensi.
+- `/rekap/ses-002`: contoh satu kehadiran Agil, jam `10:35:14`, catatan `PC-09`.
+- `/rekap/ses-001` dan `/rekap/ses-003`: contoh rekap kosong.
+- `/rekap/tidak-ada`: sesi tidak ditemukan.
+- `/history`: pilih peran Praktikan di sandbox terlebih dahulu. Agil memiliki satu contoh kehadiran; Zufar tidak memiliki riwayat.
+- Navigasi menggunakan tautan di sandbox mempertahankan identitas/perubahan sesi dalam memori. Reload mereset state sesuai fondasi Yudha.
 
-`app.json` bawaan memakai `web.output: "server"`. Gunakan server production hasil export, bukan static-file hosting murni atau Metro dev server. Perintah di atas tidak menjalankan hot reload atau emulator.
+`app.json` bawaan memakai `web.output: "server"`. Karena itu preview menggunakan server production hasil export, bukan static-file hosting murni dan bukan Metro dev server. Tidak ada hot reload atau emulator. Server pengujian otomatis ditutup setelah tes.
 
 ## Kontrak Props
 
@@ -50,38 +53,36 @@ Array data bersifat readonly pada props; komponen tidak memutasi dataset. Pergan
 
 `AttendanceScreenHeader` dipakai bersama kedua layar. Tombol berlabel "Kembali" menjalankan callback route: kembali ke layar sebelumnya bila tersedia, atau ke `/` untuk direct link tanpa history navigasi.
 
-## Integrasi Saat Ini
+## Batas Demo dan Integrasi Akhir
 
-- `createLabSyncState` memulai `attendances: []`. `useLabSync` menyediakan array yang sama untuk submit formulir, status sudah presensi di beranda, rekap sesi, dan riwayat identitas aktif; route final tidak lagi memakai `PREVIEW_ATTENDANCES` atau notice data contoh.
-- Reducer memvalidasi peran Praktikan, NIM dan nama sesuai identitas aktif setelah trim, sesi tersedia dan berstatus `DIBUKA`, serta kelas payload sesuai kelas sesi. Format waktu juga divalidasi. Duplikat pasangan sesi + NIM mengembalikan record lama tanpa menambah kehadiran.
-- Context menghasilkan `checkInTime` melalui Intl (`toLocaleTimeString`) dengan locale `en-GB`, zona `Asia/Jakarta`, dan `hour12: false`, berupa `HH:mm:ss`. Bukan jam contoh hardcoded.
-- Beranda menautkan langsung ke `/rekap/[id]` dan `/history`. Kontrol rekap tetap memakai `SessionControlAction` Yudha beserta konfirmasi dan validasi reducer; buka/tutup sesi tidak membuat presensi.
-- Semua data hanya berlaku selama runtime lokal, reset saat reload, tanpa backend, persistensi, atau sinkronisasi antarperangkat.
+Route Zufar membaca identitas dan sesi dari provider Yudha yang sudah tersedia. Presensi tetap menggunakan `PREVIEW_ATTENDANCES` read-only, dengan pemberitahuan demo terlihat di kedua layar. Buka/tutup sesi tidak membuat kehadiran baru. Kontrol sesi pada rekap memakai `SessionControlAction` Yudha, termasuk modal konfirmasi dan reducer yang sudah memvalidasi aksi.
 
-- Form dan feedback memakai satu native modal dengan konten yang berganti, untuk menghindari perlombaan dismiss/present pada iOS. Form dipasang ulang pada setiap percobaan baru agar input dan error tidak tertinggal; form dan feedback bisa digulir pada layar pendek.
-- Route `/preview/*`, `/zufar-sandbox`, komponen preview, dan `src/constants/preview-attendance.ts` sudah dihapus. Fixture statis hanya dipakai pada pengujian komponen terisolasi, bukan sebagai data aplikasi.
+Langkah integrasi yang masih menjadi pekerjaan tim:
 
-Commit dipisahkan antara sinkronisasi `main`, fitur integrasi beserta tes, dan dokumentasi. PR integrasi perlu review tim sebelum di-merge ke `main`. Folder `LabSync/` bertingkat yang sudah ada sebagai untracked tidak diubah dan tidak termasuk commit integrasi.
+1. Yudha dan Agil menyediakan attendance state/action bersama, termasuk validasi status sesi dan anti-duplikat.
+2. Pada kedua route Zufar, ganti `PREVIEW_ATTENDANCES` dengan array attendance dari context. Pertahankan komponen presentasi dan kontraknya.
+3. Yudha mengganti tautan `/preview/rekap/[id]` dan `/preview/history` di beranda menjadi `/rekap/[id]` dan `/history`.
+4. Hapus notice demo, sandbox, serta preview routes/data ketika integrasi benar-benar selesai. Jangan menghapus data contoh sebelum seluruh consumer preview diperbarui.
+5. Uji alur SRS lima tahap termasuk submit presensi nyata dalam memori dan penolakan duplikat. Pengujian mandiri ini tidak menyatakan alur tim tersebut sudah selesai.
 
 Kepemilikan sesi sementara menggunakan nama asisten sesuai kontrak `Session` yang dibekukan. Pembatasan peran ini untuk simulasi lokal Sprint 1, bukan autentikasi atau otorisasi backend.
 
-## Verifikasi Integrasi
+## Verifikasi
 
-Hasil verifikasi ulang pada 25 Oktober 2026 setelah integrasi:
+Hasil pada 25 Oktober 2026:
 
 | Pemeriksaan | Hasil |
 | --- | --- |
 | `npx tsc --noEmit` | Lulus |
 | `npx expo lint` | Lulus |
-| `npx eslint src tests --max-warnings 0` | Lulus |
-| `npm run test:state` | 56 tes lulus, termasuk subtes validasi |
+| `npx eslint . --max-warnings 0` | Lulus, termasuk skrip pengujian |
+| `npm run test:state` | 5 tes lulus, regresi fondasi Yudha |
 | `npx expo export --platform web` | Lulus |
-| `node --test tests/zufar-web.test.cjs` | 6 tes lulus, Edge headless berbasis Chromium, dengan konfigurasi tooling di bawah |
-| `git diff --check` | Lulus |
+| `node --test tests/zufar-web.test.cjs` | 4 tes lulus, Edge headless berbasis Chromium |
 
-Tes browser mulai dari beranda dengan presensi kosong, submit formulir nyata, lalu memeriksa jam yang sama pada feedback, riwayat, dan rekap di viewport 360px dan 1280px. Cakupan meliputi pergantian identitas/peran, isolasi data, batal/konfirmasi tutup sesi, riwayat sesi selesai, role guard, direct-link fallback, pembatalan formulir, retry identitas salah, reset saat reload, dan fixture props terisolasi. Feedback dengan catatan panjang juga diuji dapat digulir dan ditutup pada viewport 360x500. Tidak ada overflow horizontal atau error browser pada alur yang diuji.
+Tes browser memeriksa viewport 360px dan 1280px, data terisi/kosong, isolasi sesi dan identitas, batal/konfirmasi tutup sesi, riwayat sesi selesai, role guard, direct-link fallback, target tombol kembali minimal 44px, serta tidak adanya overflow horizontal dan error console pada alur production. Fixture props terisolasi memakai komponen asli dengan React Native Web, bukan route tambahan dalam aplikasi: nama panjang, catatan kosong, perubahan data, pengguna/sesi hilang, urutan riwayat, dan ikon kustom.
 
-Tes reducer memeriksa anti-duplikat berdasarkan sesi + NIM termasuk submit berurutan, identitas aktif, status sesi terbaru, integritas record lama, trim catatan, dan state awal kosong. Android/iOS, keyboard native, screen reader perangkat, dan text scaling native belum diuji langsung.
+Screenshot rekap dan riwayat pada kedua ukuran juga diperiksa. Android/iOS, screen reader perangkat, dan text scaling native belum diuji.
 
 ### Menjalankan Ulang Tes Browser
 
@@ -101,4 +102,4 @@ Jika Edge tidak tersedia, install browser Chromium menggunakan CLI Playwright da
 
 ### Dependency Audit
 
-Audit historis `npm audit --omit=dev` melaporkan 8 kerentanan bawaan (3 moderate, 5 high), melalui `node-forge`, `uuid`, dan `zod` di dependency transitif tooling Expo. Tidak dilakukan `npm audit fix --force`: rekomendasinya mencakup perubahan Expo yang breaking dan di luar scope Z1-Z4. Audit belum diulang untuk integrasi ini; perlu tindak lanjut pemelihara sebelum deployment production.
+`npm audit --omit=dev` melaporkan 8 kerentanan bawaan (3 moderate, 5 high), melalui `node-forge`, `uuid`, dan `zod` di dependency transitif tooling Expo. Tidak dilakukan `npm audit fix --force`: rekomendasinya mencakup perubahan Expo yang breaking dan di luar scope Z1-Z4. Perlu tindak lanjut pemelihara fondasi/dependency sebelum deployment production.

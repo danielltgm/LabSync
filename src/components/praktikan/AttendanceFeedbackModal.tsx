@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export interface AttendanceFeedbackData {
   sessionId: string;
@@ -36,118 +37,116 @@ export function isDuplicateAttendance(
 
 export function AttendanceFeedbackModal({
   visible,
-  ...props
-}: AttendanceFeedbackModalProps) {
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={props.onClose}>
-      <ScrollView style={styles.backdrop} contentContainerStyle={styles.content}>
-        <AttendanceFeedbackContent {...props} />
-      </ScrollView>
-    </Modal>
-  );
-}
-
-export function AttendanceFeedbackContent({
   onClose,
   courseName,
   attendance,
   isDuplicate = false,
-}: Omit<AttendanceFeedbackModalProps, 'visible'>) {
+}: AttendanceFeedbackModalProps) {
   return (
-    <View style={styles.card}>
-      <View
-        style={[
-          styles.iconCircle,
-          isDuplicate ? styles.iconDuplicate : styles.iconSuccess,
-        ]}
-      >
-        <Text
-          style={[
-            styles.iconText,
-            isDuplicate ? styles.iconTextDuplicate : styles.iconTextSuccess,
-          ]}
-        >
-          {isDuplicate ? '!' : '✓'}
-        </Text>
-      </View>
-
-      <Text style={styles.title}>
-        {isDuplicate ? 'Presensi Ditolak' : 'Presensi Berhasil Dicatat!'}
-      </Text>
-
-      <Text style={styles.subtitle}>
-        {isDuplicate
-          ? `Anda sudah melakukan presensi pada sesi ini sebelumnya${
-              attendance?.checkInTime
-                ? ` pada pukul ${attendance.checkInTime} WIB.`
-                : '!'
-            }`
-          : 'Kehadiran Anda telah berhasil tersimpan pada sesi praktikum ini.'}
-      </Text>
-
-      {attendance && (
-        <View style={styles.summaryBox}>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Mahasiswa</Text>
-            <Text style={styles.summaryValue}>
-              {attendance.studentName} ({attendance.studentId})
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <SafeAreaView style={styles.backdrop}>
+        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.card}>
+          <View
+            style={[
+              styles.iconCircle,
+              isDuplicate ? styles.iconDuplicate : styles.iconSuccess,
+            ]}
+          >
+            <Text
+              style={[
+                styles.iconText,
+                isDuplicate ? styles.iconTextDuplicate : styles.iconTextSuccess,
+              ]}
+            >
+              {isDuplicate ? '!' : '✓'}
             </Text>
           </View>
 
-          {courseName ? (
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Sesi Praktikum</Text>
-              <Text style={styles.summaryValue}>{courseName}</Text>
+            <Text accessibilityRole="header" style={styles.title}>
+            {isDuplicate ? 'Presensi Ditolak' : 'Presensi Berhasil Dicatat!'}
+          </Text>
+
+          <Text style={styles.subtitle}>
+            {isDuplicate
+              ? `Anda sudah melakukan presensi pada sesi ini sebelumnya${
+                  attendance?.checkInTime
+                    ? ` pada pukul ${attendance.checkInTime}.`
+                    : '!'
+                }`
+              : 'Kehadiran Anda telah berhasil tersimpan pada sesi praktikum ini.'}
+          </Text>
+
+          {attendance && (
+            <View style={styles.summaryBox}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Mahasiswa</Text>
+                <Text style={styles.summaryValue}>
+                  {attendance.studentName} ({attendance.studentId})
+                </Text>
+              </View>
+
+              {courseName ? (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Sesi Praktikum</Text>
+                  <Text style={styles.summaryValue}>{courseName}</Text>
+                </View>
+              ) : null}
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Jam Presensi</Text>
+                <Text style={[styles.summaryValue, styles.timeBadge]}>
+                  {attendance.checkInTime}
+                </Text>
+              </View>
+
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Catatan / PC</Text>
+                <Text style={styles.summaryValue}>
+                  {attendance.notes?.trim() ? attendance.notes : '-'}
+                </Text>
+              </View>
             </View>
-          ) : null}
+          )}
 
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Jam Presensi</Text>
-            <Text style={[styles.summaryValue, styles.timeBadge]}>
-              {attendance.checkInTime} WIB
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel={isDuplicate ? 'Tutup Peringatan' : 'Selesai dan Tutup'}
+            style={({ pressed }) => [
+              styles.button,
+              isDuplicate ? styles.buttonDanger : styles.buttonPrimary,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.buttonText}>
+              {isDuplicate ? 'Mengerti & Tutup' : 'Selesai & Tutup'}
             </Text>
-          </View>
-
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Catatan / PC</Text>
-            <Text style={styles.summaryValue}>
-              {attendance.notes?.trim() ? attendance.notes : '-'}
-            </Text>
-          </View>
+          </Pressable>
         </View>
-      )}
-
-      <Pressable
-        onPress={onClose}
-        accessibilityRole="button"
-        accessibilityLabel={isDuplicate ? 'Tutup Peringatan' : 'Selesai dan Tutup'}
-        style={({ pressed }) => [
-          styles.button,
-          isDuplicate ? styles.buttonDanger : styles.buttonPrimary,
-          pressed && styles.buttonPressed,
-        ]}
-      >
-        <Text style={styles.buttonText}>
-          {isDuplicate ? 'Mengerti & Tutup' : 'Selesai & Tutup'}
-        </Text>
-      </Pressable>
-    </View>
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  scrollArea: { width: '100%', flexGrow: 0, maxHeight: '100%' },
+  scrollContent: { alignItems: 'center' },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(15, 23, 42, 0.6)',
-  },
-  content: {
-    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
   },
   card: {
-    width: '100%',
+    width: '88%',
     maxWidth: 480,
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -238,7 +237,8 @@ const styles = StyleSheet.create({
   },
   button: {
     width: '100%',
-    height: 48,
+    minHeight: 48,
+    padding: 12,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',

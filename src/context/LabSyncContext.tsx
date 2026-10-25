@@ -1,10 +1,10 @@
 import { createContext, useContext, useMemo, useReducer, type ReactNode } from 'react';
 
-import { DUMMY_USERS, INITIAL_SESSIONS } from '@/constants/dummy-data';
+import { DUMMY_USERS, INITIAL_SESSIONS, INITIAL_ATTENDANCES } from '@/constants/dummy-data';
 import { createLabSyncState, getActiveUser, labSyncReducer, type LabSyncState } from '@/state/labsync-store';
-import type { AttendancePayload } from '@/types/attendance';
 import type { Session } from '@/types/session';
 import type { UserProfile, UserRole } from '@/types/user';
+import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
 
 interface LabSyncContextValue extends LabSyncState {
   activeUser: UserProfile | undefined;
@@ -12,8 +12,8 @@ interface LabSyncContextValue extends LabSyncState {
   selectStudent: (studentId: string) => void;
   openSession: (sessionId: string) => void;
   closeSession: (sessionId: string) => void;
-  submitAttendance: (payload: AttendancePayload) => void;
-  clearAttendanceResult: () => void;
+  checkInSession: (payload: AttendancePayload) => void;
+  clearCheckInResult: () => void;
 }
 
 const LabSyncContext = createContext<LabSyncContextValue | null>(null);
@@ -22,15 +22,17 @@ export function LabSyncProvider({
   children,
   initialUsers = DUMMY_USERS,
   initialSessions = INITIAL_SESSIONS,
+  initialAttendances = INITIAL_ATTENDANCES,
 }: {
   children: ReactNode;
   initialUsers?: readonly UserProfile[];
   initialSessions?: readonly Session[];
+  initialAttendances?: readonly AttendanceRecord[];
 }) {
   const [state, dispatch] = useReducer(
     labSyncReducer,
-    { initialUsers, initialSessions },
-    ({ initialUsers: users, initialSessions: sessions }) => createLabSyncState(users, sessions),
+    { initialUsers, initialSessions, initialAttendances },
+    ({ initialUsers: users, initialSessions: sessions, initialAttendances: attendances }) => createLabSyncState(users, sessions, attendances),
   );
   const value = useMemo<LabSyncContextValue>(() => ({
     ...state,
@@ -39,11 +41,13 @@ export function LabSyncProvider({
     selectStudent: (studentId) => dispatch({ type: 'select_student', studentId }),
     openSession: (sessionId) => dispatch({ type: 'open_session', sessionId }),
     closeSession: (sessionId) => dispatch({ type: 'close_session', sessionId }),
-    submitAttendance: (payload) => dispatch({
-      type: 'submit_attendance', payload,
-      checkInTime: new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false }),
-    }),
-    clearAttendanceResult: () => dispatch({ type: 'clear_attendance_result' }),
+    checkInSession: (payload) => {
+      const now = new Date();
+      const checkInTime = [now.getHours(), now.getMinutes(), now.getSeconds()]
+        .map((part) => String(part).padStart(2, '0')).join(':');
+      dispatch({ type: 'check_in', payload, checkInTime });
+    },
+    clearCheckInResult: () => dispatch({ type: 'clear_check_in_result' }),
   }), [state]);
 
   return <LabSyncContext.Provider value={value}>{children}</LabSyncContext.Provider>;

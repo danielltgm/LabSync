@@ -11,6 +11,7 @@ export default function AttendanceHistoryScreen() {
       activeUser={activeUser}
       sessions={sessions}
       attendances={attendances}
+      notice="Demo Sprint 1: data disimpan selama aplikasi berjalan."
       onBack={() => router.canGoBack() ? router.back() : router.replace('/')}
     />
   );

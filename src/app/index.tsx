@@ -4,10 +4,12 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SessionCard } from '@/components/asisten/SessionCard';
+import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 import { RoleSwitcher } from '@/components/common/RoleSwitcher';
-import { AttendanceFeedbackContent } from '@/components/praktikan/AttendanceFeedbackModal';
-import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
+import { EmptyState } from '@/components/common/EmptyState';
 import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
+import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
+import { AttendanceFeedbackModal, isDuplicateAttendance } from '@/components/praktikan/AttendanceFeedbackModal';
 import {
   LabSyncColors as colors,
   LabSyncRadii as radii,
@@ -18,14 +20,14 @@ import { useLabSync } from '@/context/LabSyncContext';
 
 export default function HomeScreen() {
   const {
-    users, sessions, attendances, attendanceResult, activeRole, activeStudentId, activeUser,
-    setRole, selectStudent, openSession, closeSession, submitAttendance, clearAttendanceResult,
+    users, sessions, activeRole, activeStudentId, activeUser,
+    setRole, selectStudent, openSession, closeSession,
+    attendances, checkInResult, checkInSession, clearCheckInResult,
   } = useLabSync();
-  const [attendanceSessionId, setAttendanceSessionId] = useState<string | null>(null);
-  const attendanceSession = sessions.find((session) => session.id === attendanceSessionId);
-  const feedback = attendanceResult && attendanceResult.status !== 'error' ? attendanceResult : null;
-  const feedbackSession = sessions.find((session) => session.id === feedback?.attendance.sessionId);
-  const closeAttendance = () => { setAttendanceSessionId(null); clearAttendanceResult(); };
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const selectedSession = sessions.find((session) => session.id === selectedSessionId);
+  const feedback = checkInResult && checkInResult.kind !== 'error' ? checkInResult : null;
+  const dismissAttendance = () => { setSelectedSessionId(null); clearCheckInResult(); };
   const isAssistant = activeRole === 'ASISTEN';
   const visibleSessions = isAssistant
     ? sessions.filter((session) => session.assistantName === activeUser?.name)
@@ -54,12 +56,12 @@ export default function HomeScreen() {
               activeRole={activeRole}
               students={users}
               activeStudentId={activeStudentId}
-              onRoleChange={(role) => { closeAttendance(); setRole(role); }}
-              onStudentChange={(studentId) => { closeAttendance(); selectStudent(studentId); }}
+              onRoleChange={(role) => { dismissAttendance(); setRole(role); }}
+              onStudentChange={(studentId) => { dismissAttendance(); selectStudent(studentId); }}
             />
             <View style={styles.demo}>
-              <Text style={styles.demoTitle}>Simulasi lokal Sprint 1</Text>
-              <Text style={styles.body}>Sesi dan presensi tersimpan selama aplikasi berjalan, tanpa sinkronisasi antarperangkat. Muat ulang untuk kembali ke data awal.</Text>
+              <Text style={styles.demoTitle}>Mode demo · data dummy</Text>
+              <Text style={styles.body}>Perubahan sesi tersimpan selama aplikasi berjalan. Muat ulang untuk kembali ke data awal.</Text>
             </View>
             {!isAssistant && (
               <Pressable
@@ -80,27 +82,9 @@ export default function HomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text accessibilityElementsHidden style={styles.emptyIcon}>○</Text>
-            <Text style={styles.sectionTitle}>Belum ada jadwal praktikum</Text>
-            <Text style={styles.body}>Jadwal akan muncul di sini saat sesi tersedia.</Text>
-          </View>
+          <EmptyState title="Belum ada jadwal praktikum" description="Jadwal akan muncul di sini saat sesi tersedia." />
         }
-        renderItem={({ item }) => {
-          const alreadyPresent = attendances.some((attendance) =>
-            attendance.sessionId === item.id && attendance.studentId === activeUser?.identifier);
-
-          if (!isAssistant) {
-            return (
-              <SessionPraktikanCard session={item} isAttended={alreadyPresent}
-                onPressAttendance={(session) => {
-                  clearAttendanceResult();
-                  setAttendanceSessionId(session.id);
-                }} />
-            );
-          }
-
-          return (
+        renderItem={({ item }) => isAssistant ? (
             <SessionCard
               session={item}
               role={activeRole}
@@ -108,28 +92,43 @@ export default function HomeScreen() {
               onCloseSession={closeSession}
               onViewRecap={(id) => router.push({ pathname: '/rekap/[id]', params: { id } })}
             />
-          );
-        }}
+          ) : (
+            <SessionPraktikanCard
+              session={item}
+              isAttended={isDuplicateAttendance(attendances, item.id, activeUser?.identifier ?? '')}
+              onPressAttendance={(session) => { clearCheckInResult(); setSelectedSessionId(session.id); }}
+            />
+          )}
       />
-      {attendanceSession && activeUser && !isAssistant && (
+      {!isAssistant && activeUser && selectedSession && !checkInResult && (
         <AttendanceFormModal
-          key={`${attendanceSession.id}:${activeUser.id}`}
-          visible
-          sessionId={attendanceSession.id}
-          courseName={attendanceSession.courseName}
-          className={attendanceSession.className}
+          visible={selectedSession.status === 'DIBUKA'}
+          sessionId={selectedSession.id}
+          courseName={selectedSession.courseName}
+          className={selectedSession.className}
           initialStudentId={activeUser.identifier}
           initialStudentName={activeUser.name}
-          submissionError={attendanceResult?.status === 'error' ? attendanceResult.message : undefined}
-          feedback={feedback ? (
-            <AttendanceFeedbackContent attendance={feedback.attendance}
-              courseName={feedbackSession?.courseName} isDuplicate={feedback.status === 'duplicate'}
-              onClose={closeAttendance} />
-          ) : undefined}
-          onClose={closeAttendance}
-          onSubmit={submitAttendance}
+          identityLocked
+          onClose={dismissAttendance}
+          onSubmit={checkInSession}
         />
       )}
+      <AttendanceFeedbackModal
+        visible={!isAssistant && feedback !== null}
+        attendance={feedback?.attendance}
+        courseName={sessions.find((session) => session.id === feedback?.attendance.sessionId)?.courseName}
+        isDuplicate={feedback?.kind === 'duplicate'}
+        onClose={dismissAttendance}
+      />
+      <ConfirmationModal
+        visible={!isAssistant && checkInResult?.kind === 'error'}
+        title="Presensi belum dapat dicatat"
+        message={checkInResult?.kind === 'error' ? checkInResult.message : ''}
+        confirmLabel="Mengerti"
+        cancelLabel="Tutup"
+        onCancel={dismissAttendance}
+        onConfirm={dismissAttendance}
+      />
     </SafeAreaView>
   );
 }
@@ -158,7 +157,5 @@ const styles = StyleSheet.create({
   sectionTitle: { ...type.section, color: colors.text },
   caption: { ...type.caption, color: colors.textSecondary },
   separator: { height: space.lg },
-  empty: { padding: space.xl, gap: space.sm, backgroundColor: colors.surface, borderRadius: radii.lg },
-  emptyIcon: { fontSize: 48, color: colors.textSecondary },
   pressed: { opacity: 0.8 },
 });
