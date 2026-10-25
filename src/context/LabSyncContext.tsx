@@ -2,6 +2,7 @@ import { createContext, useContext, useMemo, useReducer, type ReactNode } from '
 
 import { DUMMY_USERS, INITIAL_SESSIONS } from '@/constants/dummy-data';
 import { createLabSyncState, getActiveUser, labSyncReducer, type LabSyncState } from '@/state/labsync-store';
+import type { AttendancePayload } from '@/types/attendance';
 import type { Session } from '@/types/session';
 import type { UserProfile, UserRole } from '@/types/user';
 
@@ -11,6 +12,8 @@ interface LabSyncContextValue extends LabSyncState {
   selectStudent: (studentId: string) => void;
   openSession: (sessionId: string) => void;
   closeSession: (sessionId: string) => void;
+  submitAttendance: (payload: AttendancePayload) => void;
+  clearAttendanceResult: () => void;
 }
 
 const LabSyncContext = createContext<LabSyncContextValue | null>(null);
@@ -36,6 +39,11 @@ export function LabSyncProvider({
     selectStudent: (studentId) => dispatch({ type: 'select_student', studentId }),
     openSession: (sessionId) => dispatch({ type: 'open_session', sessionId }),
     closeSession: (sessionId) => dispatch({ type: 'close_session', sessionId }),
+    submitAttendance: (payload) => dispatch({
+      type: 'submit_attendance', payload,
+      checkInTime: new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Jakarta', hour12: false }),
+    }),
+    clearAttendanceResult: () => dispatch({ type: 'clear_attendance_result' }),
   }), [state]);
 
   return <LabSyncContext.Provider value={value}>{children}</LabSyncContext.Provider>;

@@ -4,23 +4,28 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SessionCard } from '@/components/asisten/SessionCard';
-import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 import { RoleSwitcher } from '@/components/common/RoleSwitcher';
+import { AttendanceFeedbackContent } from '@/components/praktikan/AttendanceFeedbackModal';
+import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
+import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
 import {
   LabSyncColors as colors,
   LabSyncRadii as radii,
   LabSyncSpacing as space,
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
-import { PREVIEW_ATTENDANCES } from '@/constants/preview-attendance';
 import { useLabSync } from '@/context/LabSyncContext';
 
 export default function HomeScreen() {
   const {
-    users, sessions, activeRole, activeStudentId, activeUser,
-    setRole, selectStudent, openSession, closeSession,
+    users, sessions, attendances, attendanceResult, activeRole, activeStudentId, activeUser,
+    setRole, selectStudent, openSession, closeSession, submitAttendance, clearAttendanceResult,
   } = useLabSync();
-  const [showAttendanceNotice, setShowAttendanceNotice] = useState(false);
+  const [attendanceSessionId, setAttendanceSessionId] = useState<string | null>(null);
+  const attendanceSession = sessions.find((session) => session.id === attendanceSessionId);
+  const feedback = attendanceResult && attendanceResult.status !== 'error' ? attendanceResult : null;
+  const feedbackSession = sessions.find((session) => session.id === feedback?.attendance.sessionId);
+  const closeAttendance = () => { setAttendanceSessionId(null); clearAttendanceResult(); };
   const isAssistant = activeRole === 'ASISTEN';
   const visibleSessions = isAssistant
     ? sessions.filter((session) => session.assistantName === activeUser?.name)
@@ -49,20 +54,20 @@ export default function HomeScreen() {
               activeRole={activeRole}
               students={users}
               activeStudentId={activeStudentId}
-              onRoleChange={(role) => { setShowAttendanceNotice(false); setRole(role); }}
-              onStudentChange={(studentId) => { setShowAttendanceNotice(false); selectStudent(studentId); }}
+              onRoleChange={(role) => { closeAttendance(); setRole(role); }}
+              onStudentChange={(studentId) => { closeAttendance(); selectStudent(studentId); }}
             />
             <View style={styles.demo}>
-              <Text style={styles.demoTitle}>Mode demo · data dummy</Text>
-              <Text style={styles.body}>Perubahan sesi tersimpan selama aplikasi berjalan. Muat ulang untuk kembali ke data awal.</Text>
+              <Text style={styles.demoTitle}>Simulasi lokal Sprint 1</Text>
+              <Text style={styles.body}>Sesi dan presensi tersimpan selama aplikasi berjalan, tanpa sinkronisasi antarperangkat. Muat ulang untuk kembali ke data awal.</Text>
             </View>
             {!isAssistant && (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => router.push('/preview/history')}
+                onPress={() => router.push('/history')}
                 style={({ pressed }) => [styles.historyButton, pressed && styles.pressed]}
               >
-                <Text style={styles.linkLabel}>Riwayat Saya · pratinjau</Text>
+                <Text style={styles.linkLabel}>Riwayat Saya</Text>
               </Pressable>
             )}
             <View style={styles.section}>
@@ -82,12 +87,18 @@ export default function HomeScreen() {
           </View>
         }
         renderItem={({ item }) => {
-          const alreadyPresent = PREVIEW_ATTENDANCES.some((attendance) =>
+          const alreadyPresent = attendances.some((attendance) =>
             attendance.sessionId === item.id && attendance.studentId === activeUser?.identifier);
-          const attendanceLabel = item.status === 'SELESAI' ? 'Sesi Selesai'
-            : item.status === 'TERJADWAL' ? 'Sesi Belum Dibuka'
-              : alreadyPresent ? 'Sudah Presensi · data contoh' : 'Lakukan Presensi';
-          const attendanceDisabled = item.status !== 'DIBUKA' || alreadyPresent || !activeUser;
+
+          if (!isAssistant) {
+            return (
+              <SessionPraktikanCard session={item} isAttended={alreadyPresent}
+                onPressAttendance={(session) => {
+                  clearAttendanceResult();
+                  setAttendanceSessionId(session.id);
+                }} />
+            );
+          }
 
           return (
             <SessionCard
@@ -95,39 +106,30 @@ export default function HomeScreen() {
               role={activeRole}
               onOpenSession={openSession}
               onCloseSession={closeSession}
-              onViewRecap={(id) => router.push({ pathname: '/preview/rekap/[id]', params: { id } })}
-            >
-              {!isAssistant && (
-                <View style={styles.studentPreview}>
-                  <Text style={styles.caption}>Pratinjau praktikan · formulir belum terhubung</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ disabled: attendanceDisabled }}
-                    disabled={attendanceDisabled}
-                    onPress={() => setShowAttendanceNotice(true)}
-                    style={({ pressed }) => [
-                      styles.attendanceButton,
-                      attendanceDisabled && styles.disabled,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={[styles.attendanceLabel, attendanceDisabled && styles.disabledLabel]}>{attendanceLabel}</Text>
-                  </Pressable>
-                </View>
-              )}
-            </SessionCard>
+              onViewRecap={(id) => router.push({ pathname: '/rekap/[id]', params: { id } })}
+            />
           );
         }}
       />
-      <ConfirmationModal
-        visible={showAttendanceNotice && !isAssistant}
-        title="Form presensi belum terhubung"
-        message="Ini pratinjau jadwal praktikan. Formulir presensi akan tersedia setelah integrasi berikutnya."
-        confirmLabel="Mengerti"
-        cancelLabel="Tutup"
-        onCancel={() => setShowAttendanceNotice(false)}
-        onConfirm={() => setShowAttendanceNotice(false)}
-      />
+      {attendanceSession && activeUser && !isAssistant && (
+        <AttendanceFormModal
+          key={`${attendanceSession.id}:${activeUser.id}`}
+          visible
+          sessionId={attendanceSession.id}
+          courseName={attendanceSession.courseName}
+          className={attendanceSession.className}
+          initialStudentId={activeUser.identifier}
+          initialStudentName={activeUser.name}
+          submissionError={attendanceResult?.status === 'error' ? attendanceResult.message : undefined}
+          feedback={feedback ? (
+            <AttendanceFeedbackContent attendance={feedback.attendance}
+              courseName={feedbackSession?.courseName} isDuplicate={feedback.status === 'duplicate'}
+              onClose={closeAttendance} />
+          ) : undefined}
+          onClose={closeAttendance}
+          onSubmit={submitAttendance}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -158,10 +160,5 @@ const styles = StyleSheet.create({
   separator: { height: space.lg },
   empty: { padding: space.xl, gap: space.sm, backgroundColor: colors.surface, borderRadius: radii.lg },
   emptyIcon: { fontSize: 48, color: colors.textSecondary },
-  studentPreview: { gap: space.sm },
-  attendanceButton: { minHeight: 48, padding: space.md, borderRadius: radii.md, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center' },
-  attendanceLabel: { ...type.button, color: colors.surface, textAlign: 'center' },
-  disabled: { backgroundColor: colors.neutral.background },
-  disabledLabel: { color: colors.textSecondary },
   pressed: { opacity: 0.8 },
 });
