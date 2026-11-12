@@ -1,60 +1,76 @@
-# LabSync
+# 🧪 LabSync
 
-LabSync helps lab assistants manage practicum sessions and students track attendance and request leave. The app uses Expo Router and React Native, with Firebase Authentication for accounts and Cloud Firestore for shared data.
+Satu app buat praktikum, dari cek jadwal sampai rekap presensi. Asisten buka sesi, praktikan lihat statusnya langsung. Sekarang LabSync lagi masuk Sprint 2, pakai akun Firebase dan data yang bisa diakses bareng.
 
-The Sprint 2 foundation supports sign-in and sign-out, schedules scoped to each account, and live session status. The existing recap and history screens read Firestore. Registration, practicum CRUD, attendance submission, and the leave flow are feature PRs for Sprint 2.
+**Stack** · Expo Router · React Native · TypeScript · Firebase Auth · Cloud Firestore
 
-## Get started
+## 🚀 Jalanin app
 
-Use Node.js 24 LTS (24.3 or newer), then run `npm ci` from the repo root.
+Pakai Node.js 24 LTS (minimal 24.3), lalu run `npm ci` dari root repo.
 
-| I want to… | Use |
-| --- | --- |
-| Demo with teammates or use Expo Go across networks | [Shared Firebase dev](#shared-firebase-dev) |
-| Develop or test rules with disposable data | [Local Firebase emulators](#local-firebase-emulators) |
+### Firebase dev bareng tim
 
-### Shared Firebase dev
+1. Ambil file `.env.local` dan akun demo dari PM. Taruh file-nya di folder yang sama dengan `package.json`.
+2. Cek project ID-nya `labsync-sprint2-dev` dan `EXPO_PUBLIC_FIREBASE_EMULATORS=false`.
+3. Run `npm run web` buat browser, atau `npm start` lalu scan QR dari Expo Go. Kalau HP beda jaringan sama Metro, pakai `npx expo start --tunnel`.
 
-1. Get the team's `.env.local` and a demo login from the PM.
-2. Put `.env.local` next to `package.json`. It should point to `labsync-sprint2-dev` and set `EXPO_PUBLIC_FIREBASE_EMULATORS=false`.
-3. Run `npm run web` for the browser or `npm start` and scan the QR code with Expo Go. Use `npx expo start --tunnel` if the phone cannot reach Metro over the local network.
+File `.env.local` berisi config client yang bisa dibagi ke tim. Password akun demo dikirim terpisah lewat channel privat. Simpan credential Admin dan secret API pengajar di luar Git dan `EXPO_PUBLIC_*`. Kalau perlu akses project, minta invite ke PM. [Firebase Console](https://console.firebase.google.com/project/labsync-sprint2-dev/overview)
 
-The Expo environment file contains public Firebase client settings. Share demo passwords separately in a private channel. Keep Admin credentials and the instructor's AI secret out of Git and out of `EXPO_PUBLIC_*`. Teammates who need console access can ask the PM for an invite. [Firebase Console](https://console.firebase.google.com/project/labsync-sprint2-dev/overview)
+### Emulator lokal
 
-### Local Firebase emulators
+Pakai ini kalau mau ngulik rules atau reset data demo sendiri. Firestore Emulator butuh Java 21+.
 
-The Firestore emulator needs Java 21 or newer.
+1. Copy [`.env.example`](.env.example) ke `.env.local`. Biarkan `EXPO_PUBLIC_FIREBASE_EMULATORS=true`.
+2. Di terminal pertama, run `npm run firebase:emulators` dan biarkan jalan.
+3. Di terminal kedua, run `npm run firebase:seed`, lalu `npm run web`.
 
-1. Copy [`.env.example`](.env.example) to `.env.local` and keep `EXPO_PUBLIC_FIREBASE_EMULATORS=true`.
-2. Start Firebase in one terminal and leave it running.
-
-   ```sh
-   npm run firebase:emulators
-   ```
-
-3. Seed demo accounts and a session, then start Expo web in a second terminal.
-
-   ```sh
-   npm run firebase:seed
-   npm run web
-   ```
-
-| Role | Local demo email | Local password |
+| Role | Email emulator | Password emulator |
 | --- | --- | --- |
 | Asisten | `assistant@labsync.example` | `labsync-local` |
 | Praktikan | `student@labsync.example` | `labsync-local` |
 
-For Expo Go on a physical phone, connect it to the same Wi-Fi as your computer. Bind the Auth and Firestore emulators to your computer's LAN IP in `firebase.json`, set that IP as `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST`, then restart the emulators and Expo. Set `FIREBASE_AUTH_EMULATOR_HOST` and `FIRESTORE_EMULATOR_HOST` to the same IP with ports `9099` and `8080` when running the seed.
+**Coba bareng dua akun.** Buka **Pemrograman Mobile** sebagai asisten di satu profil browser, lalu lihat statusnya berubah di profil praktikan tanpa refresh. Tutup sesi dan reload halaman praktikan buat cek statusnya tetap tersimpan. Buat ngulang dari awal, restart emulator tanpa import data, lalu seed ulang. Seed di emulator yang masih jalan mempertahankan status sesi.
 
-## Try the live session flow
+<details>
+<summary>Pakai emulator dari HP</summary>
 
-1. Sign in as the assistant in one browser profile and as the student in another.
-2. Open **Pemrograman Mobile** as the assistant. The student's schedule updates without refreshing.
-3. Close the session as the assistant, then reload the student's page to confirm the status was saved.
+Sambungkan HP dan komputer ke Wi-Fi yang sama. Set `host` Auth dan Firestore di `firebase.json` ke IP LAN komputer. Pakai IP itu juga buat `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST`, lalu restart emulator dan Expo. Saat seed, isi `FIREBASE_AUTH_EMULATOR_HOST` dengan `IP_LAN:9099` dan `FIRESTORE_EMULATOR_HOST` dengan `IP_LAN:8080`.
 
-Use the local emulator to repeat the demo from a fresh session. Stop and restart the emulators without importing data, then run `npm run firebase:seed` again. Seeding a running emulator preserves the session's current status.
+</details>
 
-## Run the checks
+## 👥 User stories
+
+Ini target Sprint 2. Di scaffold sekarang, lo sudah bisa login/logout, lihat jadwal sesuai akun, buka/tutup sesi secara live, dan baca data rekap atau history dari Firestore.
+
+- **Sebagai praktikan**, gue mau lihat jadwal kelas sendiri dan absen sekali saat sesi dibuka, biar kehadiran gue kecatat dan bisa dicek lagi di riwayat.
+- **Sebagai asisten**, gue mau ngatur kelas, peserta, dan jadwal, lalu buka sesi dan lihat siapa yang sudah hadir tanpa refresh.
+- **Sebagai praktikan yang berhalangan**, gue mau kirim alasan izin dan bisa cek statusnya dari akun gue.
+- **Sebagai asisten yang review izin**, gue mau lihat alasan dan kategori dari AI sebelum gue sendiri putuskan izinnya diterima atau ditolak.
+
+## 🗂️ Dari Sprint 1 ke Sprint 2
+
+| Sprint | Yang dikerjain |
+| --- | --- |
+| **Sprint 1 · UI & alur lokal** | FR‑01–04 mencakup jadwal, simulasi role, dan kontrol sesi. FR‑05–07 mencakup form presensi, cek duplikat, dan feedback. FR‑08–10 mencakup rekap, riwayat, dan empty state. Semuanya jalan pakai state lokal. |
+| **Sprint 2 · Akun & data bareng** | Firebase Auth pegang identitas, Firestore simpan data dan kirim update real-time. Scope-nya nambah pengelolaan data kelas, presensi per akun, serta pengajuan dan review izin. |
+
+Di Sprint 1, **Yudha** pegang beranda, navigasi, dan kontrol sesi. **Agil** pegang kartu praktikan, form, dan feedback presensi. **Zufar** pegang empty state, rekap, dan history. Layar dan komponen yang masih kepakai jadi dasar Sprint 2. [SRS Sprint 1](docs/srs.md) · [Pembagian Sprint 1](docs/programmer.md)
+
+### Siapa pegang apa di Sprint 2?
+
+| SRS | Owner | Scope |
+| --- | --- | --- |
+| SRS-01 | Daniel | Registrasi, login, role, dan akses akun |
+| SRS-02 | Daniel | Firestore dan CRUD kelas, peserta, jadwal, serta sesi |
+| SRS-03 | Agiel | Presensi per akun dan pencegahan presensi ganda |
+| SRS-04 | Agiel | Pengajuan izin dan integrasi AI buat klasifikasi alasan |
+| SRS-05 | Zufar | Rekap dan riwayat presensi real-time |
+| SRS-06 | Zufar | Review izin dan keputusan asisten |
+| SRS-07 | Bareng tim · Yudha (PM) | Integrasi, testing, dan demo dua akun |
+
+Endpoint, cara autentikasi, dan format respons API pengajar masih ditunggu. Kontrak internal klasifikasi sudah ada buat mulai ngerjain flow izin. [Kontrak API dan skema Firestore](docs/sprint-2-contract.md)
+
+## 🛠️ Checks
 
 ```sh
 npm run lint
@@ -62,24 +78,18 @@ npx tsc --noEmit
 npm run test:rules
 ```
 
-`test:rules` starts its own Firestore emulator. Stop any emulator already using port `8080` first.
+`test:rules` nyalain emulator sendiri. Stop Firestore yang lagi pakai port `8080` sebelum jalanin command itu.
 
-For the two-account browser smoke test, start fresh local emulators, run the seed, and open Expo web before running these commands. Set `LABSYNC_WEB_URL` if Expo uses a port other than `8081`.
+Buat browser smoke test, mulai dari emulator yang baru di-seed dan Expo web yang lagi jalan. Set `LABSYNC_WEB_URL` kalau Expo pakai port selain `8081`.
 
 ```sh
 npx playwright install chromium
 npm run test:web
 ```
 
-## Sprint 2 handoff
+<details>
+<summary>Seed Firebase dev buat PM</summary>
 
-| Owner | Work |
-| --- | --- |
-| Daniel | SRS-01/02 · Registration, authorization, and practicum CRUD |
-| Agiel | SRS-03/04 · Attendance submission, leave requests, and AI classification |
-| Zufar | SRS-05/06 · Live recap and history, plus leave review |
-| Team with PM | SRS-07 · Integration and acceptance testing |
+Pakai Application Default Credentials, lalu run `node scripts/seed-firebase.cjs labsync-sprint2-dev`. Simpan password akun baru secara privat. Seed ulang mempertahankan password dan status sesi yang sudah ada.
 
-Use the [Sprint 2 contract](docs/sprint-2-contract.md) for Firestore paths, access rules, and the leave classification API. The instructor's endpoint, authentication method, and response format are still pending.
-
-The PM can seed the shared dev project with Application Default Credentials and `node scripts/seed-firebase.cjs labsync-sprint2-dev`. Save any newly generated dev passwords privately. Rerunning the seed preserves existing passwords and session status.
+</details>
