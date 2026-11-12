@@ -4,6 +4,10 @@ Satu app buat praktikum, dari cek jadwal sampai rekap presensi. Asisten buka ses
 
 **Stack** · Expo Router · React Native · TypeScript · Firebase Auth · Cloud Firestore
 
+![Tampilan web LabSync untuk asisten dengan sesi Pemrograman Mobile yang sedang dibuka](docs/screenshots/labsync-asisten.png)
+
+*Beranda asisten di LabSync web, pakai data demo dari Firebase Emulator.*
+
 ## 🚀 Jalanin app
 
 Pakai Node.js 24 LTS (minimal 24.3), lalu run `npm ci` dari root repo.
