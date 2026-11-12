@@ -2,16 +2,19 @@ import { router } from 'expo-router';
 
 import { AttendanceHistory } from '@/components/rekap/AttendanceHistory';
 import { useLabSync } from '@/context/LabSyncContext';
+import { useAttendance } from '@/hooks/use-attendance';
 
 export default function AttendanceHistoryScreen() {
-  const { activeUser, sessions, attendances } = useLabSync();
+  const { activeUser, sessions, loadingSessions, error } = useLabSync();
+  const attendance = useAttendance(activeUser.role === 'PRAKTISAN' ? activeUser.id : undefined);
 
   return (
     <AttendanceHistory
       activeUser={activeUser}
       sessions={sessions}
-      attendances={attendances}
-      notice="Demo Sprint 1: data disimpan selama aplikasi berjalan."
+      attendances={attendance.records}
+      notice={attendance.error || error}
+      loading={attendance.loading || loadingSessions}
       onBack={() => router.canGoBack() ? router.back() : router.replace('/')}
     />
   );

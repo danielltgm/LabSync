@@ -7,7 +7,7 @@ import type { Session } from '@/types/session';
 export interface SessionPraktikanCardProps {
   session: Session;
   isAttended: boolean;
-  onPressAttendance: (session: Session) => void;
+  onPressAttendance?: (session: Session) => void;
 }
 
 export function SessionPraktikanCard({
@@ -15,7 +15,7 @@ export function SessionPraktikanCard({
   isAttended,
   onPressAttendance,
 }: SessionPraktikanCardProps) {
-  const canAttend = session.status === 'DIBUKA' && !isAttended;
+  const canAttend = session.status === 'DIBUKA' && !isAttended && !!onPressAttendance;
 
   const getButtonConfig = () => {
     if (isAttended) {
@@ -27,9 +27,9 @@ export function SessionPraktikanCard({
     }
     if (session.status === 'DIBUKA') {
       return {
-        label: 'Lakukan Presensi',
-        buttonStyle: styles.buttonActive,
-        textStyle: styles.buttonTextActive,
+        label: canAttend ? 'Lakukan Presensi' : 'Presensi belum tersedia',
+        buttonStyle: canAttend ? styles.buttonActive : styles.buttonDisabled,
+        textStyle: canAttend ? styles.buttonTextActive : styles.buttonTextDisabled,
       };
     }
     if (session.status === 'TERJADWAL') {
@@ -65,7 +65,7 @@ export function SessionPraktikanCard({
 
       <Pressable
         disabled={!canAttend}
-        onPress={() => onPressAttendance(session)}
+        onPress={() => onPressAttendance?.(session)}
         accessibilityRole="button"
         accessibilityLabel={buttonConfig.label}
         accessibilityState={{ disabled: !canAttend }}

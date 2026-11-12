@@ -14,7 +14,7 @@ export function AttendanceScreenHeader({ title, onBack, notice }: {
         <Text style={styles.backLabel}>Kembali</Text>
       </Pressable>
       <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-      {notice && <Text style={styles.notice}>{notice}</Text>}
+      {!!notice && <Text style={styles.notice}>{notice}</Text>}
     </View>
   );
 }

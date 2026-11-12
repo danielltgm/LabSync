@@ -15,9 +15,10 @@ export interface AttendanceHistoryProps {
   attendances: readonly AttendanceRecord[];
   onBack: () => void;
   notice?: string;
+  loading?: boolean;
 }
 
-export function AttendanceHistory({ activeUser, sessions, attendances, onBack, notice }: AttendanceHistoryProps) {
+export function AttendanceHistory({ activeUser, sessions, attendances, onBack, notice, loading }: AttendanceHistoryProps) {
   const permitted = activeUser?.role === 'PRAKTISAN';
   const records = permitted ? attendances
     .filter((item) => item.studentId === activeUser.identifier)
@@ -43,12 +44,12 @@ export function AttendanceHistory({ activeUser, sessions, attendances, onBack, n
             )}
           </View>
         }
-        ListEmptyComponent={
+        ListEmptyComponent={loading ? <Text accessibilityLiveRegion="polite">Memuat data...</Text> : notice ? undefined :
           <EmptyState
             title={!activeUser ? 'Belum ada identitas aktif' : !permitted
               ? 'Riwayat hanya tersedia untuk praktikan' : 'Belum ada riwayat kehadiran'}
             description={!permitted
-              ? 'Kembali ke beranda dan pilih identitas praktikan untuk melihat riwayat pribadi.'
+              ? 'Masuk dengan akun praktikan untuk melihat riwayat pribadi.'
               : 'Anda belum tercatat hadir. Lakukan presensi pada sesi yang dibuka oleh asisten.'}
           />
         }

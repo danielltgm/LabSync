@@ -1,56 +1,31 @@
-# Welcome to your Expo app 👋
+# LabSync
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+LabSync is an Expo Router app for managing lab sessions, attendance, and leave requests. The Sprint 2 foundation connects the existing LabSync screens to Firebase Authentication and Firestore.
 
-## Get started
+## Local setup
 
-1. Install dependencies
+Use Node.js 22.13+ or 24.3+ and Java 21+ for the Firestore emulator.
 
-   ```bash
-   npm install
-   ```
+1. Run `npm ci`.
+2. Copy `.env.example` to `.env.local`.
+3. Run `npm run firebase:emulators` in one terminal.
+4. Run `npm run firebase:seed` in another terminal.
+5. Run `npm start` and press `w` for web or scan the QR code with Expo Go.
 
-2. Start the app
+The local accounts are `assistant@labsync.example` and `student@labsync.example`. Both use `labsync-local` on the emulator. Open the same session in two browser profiles to see status changes without refreshing. The seed keeps any existing session status. To start over locally, restart the emulators without imported data and run the seed again.
 
-   ```bash
-   npx expo start
-   ```
+On a physical device, set `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST` to your computer's LAN address and restart Expo. The emulator defaults to loopback. For a LAN-only emulator session, bind the Auth and Firestore emulators to your computer's LAN address in your local Firebase config. Use the shared dev project for Expo Go across networks.
 
-In the output, you'll find options to open the app in a
+## Shared Firebase dev
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+Project ID is `labsync-sprint2-dev`. Ask the PM for project access, then copy the web app settings from the [Firebase Console](https://console.firebase.google.com/project/labsync-sprint2-dev/settings/general) into `.env.local` and set `EXPO_PUBLIC_FIREBASE_EMULATORS=false`. Expo embeds these client settings in the app. Keep account passwords, Admin credentials, and the instructor's AI secret out of the repo and out of `EXPO_PUBLIC_*`.
 
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+The PM can seed the dev project with Application Default Credentials and `node scripts/seed-firebase.cjs labsync-sprint2-dev`. Save the generated dev passwords securely. Subsequent runs preserve passwords and session status.
 
-## Get a fresh project
+## Checks
 
-When you're ready, run:
+Run `npm run lint`, `npx tsc --noEmit`, and `npm run test:rules`. The rules test starts its own emulator, so stop any running Firestore emulator on port 8080 first.
 
-```bash
-npm run reset-project
-```
+For the browser smoke test, start with freshly seeded emulators and Expo web running. Run `npx playwright install chromium` once, then `npm run test:web`. Set `LABSYNC_WEB_URL` if Expo uses a different port.
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
-
-### Other setup steps
-
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+See the [Sprint 2 contracts and handoff](docs/sprint-2-contract.md) for schema, access, and feature ownership.
