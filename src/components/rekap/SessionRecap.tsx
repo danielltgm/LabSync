@@ -19,12 +19,13 @@ export interface SessionRecapProps {
   activeUser?: UserProfile;
   onBack: () => void;
   notice?: string;
+  loading?: boolean;
   sessionControls?: ReactNode;
 }
 
-export function SessionRecap({ sessionId, sessions, attendances, activeUser, onBack, notice, sessionControls }: SessionRecapProps) {
+export function SessionRecap({ sessionId, sessions, attendances, activeUser, onBack, notice, loading, sessionControls }: SessionRecapProps) {
   const session = sessions.find((item) => item.id === sessionId);
-  const permitted = activeUser?.role === 'ASISTEN' && session?.assistantName === activeUser.name;
+  const permitted = activeUser?.role === 'ASISTEN' && !!session;
   const records = permitted ? attendances.filter((item) => item.sessionId === sessionId) : [];
 
   return (
@@ -54,13 +55,13 @@ export function SessionRecap({ sessionId, sessions, attendances, activeUser, onB
             )}
           </View>
         }
-        ListEmptyComponent={
+        ListEmptyComponent={loading ? <Text accessibilityLiveRegion="polite">Memuat data...</Text> : notice ? undefined :
           <EmptyState
             title={!session ? 'Sesi tidak ditemukan' : !permitted
               ? 'Rekap hanya tersedia untuk asisten sesi ini'
               : 'Belum ada praktikan yang melakukan presensi'}
             description={!session || !permitted
-              ? 'Kembali ke beranda untuk memilih peran dan sesi yang sesuai.'
+              ? 'Kembali ke beranda untuk memilih sesi yang tersedia.'
               : 'Daftar hadir akan ditampilkan setelah data presensi tersedia untuk sesi ini.'}
           />
         }

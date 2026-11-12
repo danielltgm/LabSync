@@ -1,0 +1,62 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // The document fields and supported query shapes are in docs/sprint-2-contract.md.
+    // Profiles, classes and enrollments are provisioned by a trusted operator.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function hasRole(role) {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function managesClass(classId) {
+      return hasRole('ASISTEN') &&
+        get(/databases/$(database)/documents/classes/$(classId)).data.assistantUid == request.auth.uid;
+    }
+
+    function enrolledIn(classId) {
+      return hasRole('PRAKTISAN') &&
+        exists(/databases/$(database)/documents/enrollments/$(request.auth.uid)/classes/$(classId));
+    }
+
+    function isValidSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+        ((resource.data.status == 'TERJADWAL' && request.resource.data.status == 'DIBUKA') ||
+         (resource.data.status == 'DIBUKA' && request.resource.data.status == 'SELESAI'));
+    }
+
+    function canReadStudentRecord(data) {
+      return (hasRole('PRAKTISAN') && isOwner(data.studentUid)) || managesClass(data.classId);
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+    }
+
+    match /classes/{classId} {
+      allow get: if enrolledIn(classId);
+      allow read: if hasRole('ASISTEN') && isOwner(resource.data.assistantUid);
+    }
+
+    match /enrollments/{uid}/classes/{classId} {
+      allow read: if hasRole('PRAKTISAN') && isOwner(uid);
+    }
+
+    match /sessions/{sessionId} {
+      allow read: if enrolledIn(resource.data.classId) || managesClass(resource.data.classId);
+      allow update: if managesClass(resource.data.classId) && isValidSessionUpdate();
+    }
+
+    match /attendance/{attendanceId} {
+      allow read: if canReadStudentRecord(resource.data);
+    }
+
+    match /leaveRequests/{requestId} {
+      allow read: if canReadStudentRecord(resource.data);
+    }
+  }
+}

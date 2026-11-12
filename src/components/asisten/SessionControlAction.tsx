@@ -56,8 +56,8 @@ function SessionActionButton({
         visible={visible}
         title={isOpening ? 'Buka sesi praktikum?' : 'Tutup sesi praktikum?'}
         message={isOpening
-          ? 'Apakah Anda yakin ingin membuka sesi ini? Praktikan akan dapat melakukan presensi.'
-          : 'Apakah Anda yakin ingin menutup sesi ini? Presensi baru tidak dapat dilakukan lagi setelah sesi ditutup.'}
+          ? 'Praktikan akan melihat sesi ini sebagai dibuka.'
+          : 'Praktikan akan melihat sesi ini sebagai selesai.'}
         confirmLabel={isOpening ? 'Ya, Buka Sesi' : 'Ya, Tutup Sesi'}
         variant={isOpening ? 'primary' : 'danger'}
         onCancel={() => setVisible(false)}
