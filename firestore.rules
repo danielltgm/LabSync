@@ -1,5 +1,16 @@
 rules_version = '2';
 
+// Model: docs/sprint-2-contract.md. Identity and memberships are trusted writes.
+// users/{uid}: name, identifier, role. classes/{id}: name, assistantUid.
+// enrollments/{uid}/classes/{id}: enrolledAt timestamp.
+// sessions/{id}: classId, courseName, className, labRoom, date, startTime,
+// endTime, assistantName, status; clients may only advance status.
+// attendance/{sessionId}__{uid}: session/class/student IDs, identity snapshots,
+// checkedInAt timestamp, optional notes; read-only in this feature.
+// leaveRequests/{sessionId}__{uid}: immutable classId/sessionId/studentUid,
+// reason (1..4000), submittedAt timestamp, classification map; optional immutable
+// studentName (1..200) and studentId (1..40). Only pending -> approved/rejected
+// may be written by the assigned assistant, with reviewedBy and reviewedAt.
 service cloud.firestore {
   match /databases/{database}/documents {
     // The document fields and supported query shapes are in docs/sprint-2-contract.md.
@@ -33,6 +44,44 @@ service cloud.firestore {
       return (hasRole('PRAKTISAN') && isOwner(data.studentUid)) || managesClass(data.classId);
     }
 
+    function validText(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function validId(value) {
+      return validText(value, 128) && value.matches('^[^/]+$');
+    }
+
+    function isValidClassification(data) {
+      return data is map && data.keys().hasAll(['status']) &&
+        ((data.status in ['pending', 'unavailable'] && data.keys().hasOnly(['status'])) ||
+         (data.status == 'classified' && data.keys().hasOnly(['status', 'category']) &&
+          data.keys().hasAll(['category']) && validText(data.category, 120)));
+    }
+
+    function isValidLeaveRequest(data) {
+      return data.keys().hasAll(['sessionId', 'classId', 'studentUid', 'reason', 'submittedAt', 'classification', 'decision']) &&
+        data.keys().hasOnly(['sessionId', 'classId', 'studentUid', 'reason', 'submittedAt', 'classification', 'decision',
+          'studentName', 'studentId', 'reviewedBy', 'reviewedAt']) &&
+        validId(data.sessionId) && validId(data.classId) && validId(data.studentUid) &&
+        validText(data.reason, 4000) && data.submittedAt is timestamp && data.submittedAt <= request.time &&
+        isValidClassification(data.classification) &&
+        (!('studentName' in data) || validText(data.studentName, 200)) &&
+        (!('studentId' in data) || validText(data.studentId, 40)) &&
+        ((data.decision == 'pending' && !('reviewedBy' in data) && !('reviewedAt' in data)) ||
+         (data.decision in ['approved', 'rejected'] && validId(data.reviewedBy) && data.reviewedAt is timestamp));
+    }
+
+    function isValidLeaveReview(requestId) {
+      let data = request.resource.data;
+      return isValidLeaveRequest(data) &&
+        requestId == data.sessionId + '__' + data.studentUid &&
+        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId &&
+        resource.data.decision == 'pending' && data.decision in ['approved', 'rejected'] &&
+        data.diff(resource.data).affectedKeys().hasOnly(['decision', 'reviewedBy', 'reviewedAt']) &&
+        data.reviewedBy == request.auth.uid && data.reviewedAt == request.time;
+    }
+
     match /users/{uid} {
       allow get: if isOwner(uid);
     }
@@ -57,6 +106,7 @@ service cloud.firestore {
 
     match /leaveRequests/{requestId} {
       allow read: if canReadStudentRecord(resource.data);
+      allow update: if managesClass(resource.data.classId) && isValidLeaveReview(requestId);
     }
   }
 }

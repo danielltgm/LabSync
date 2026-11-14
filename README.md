@@ -10,7 +10,7 @@ Satu app buat praktikum, dari cek jadwal sampai rekap presensi. Asisten buka ses
 
 ## 🚀 Jalanin app
 
-Pakai Node.js 24 LTS (minimal 24.3), lalu run `npm ci` dari root repo.
+Pakai Node.js 24 LTS (minimal 24.12, sesuai requirement Firebase SDK), lalu run `npm ci` dari root repo.
 
 ### Firebase dev bareng tim
 
@@ -44,7 +44,7 @@ Sambungkan HP dan komputer ke Wi-Fi yang sama. Set `host` Auth dan Firestore di 
 
 ## 👥 User stories
 
-Ini target Sprint 2. Di scaffold sekarang, lo sudah bisa login/logout, lihat jadwal sesuai akun, buka/tutup sesi secara live, dan baca data rekap atau history dari Firestore.
+Ini target Sprint 2. Sekarang lo sudah bisa login/logout, lihat jadwal sesuai akun, buka/tutup sesi secara live, baca rekap dan riwayat dari Firestore, serta review izin dan lihat status keputusan asisten. Pengiriman presensi dan pengajuan izin tetap menunggu modul SRS-03/04.
 
 - **Sebagai praktikan**, gue mau lihat jadwal kelas sendiri dan absen sekali saat sesi dibuka, biar kehadiran gue kecatat dan bisa dicek lagi di riwayat.
 - **Sebagai asisten**, gue mau ngatur kelas, peserta, dan jadwal, lalu buka sesi dan lihat siapa yang sudah hadir tanpa refresh.
@@ -73,6 +73,8 @@ Di Sprint 1, **Yudha** pegang beranda, navigasi, dan kontrol sesi. **Agil** pega
 | SRS-07 | Bareng tim · Yudha (PM) | Integrasi, testing, dan demo dua akun |
 
 Endpoint, cara autentikasi, dan format respons API pengajar masih ditunggu. Kontrak internal klasifikasi sudah ada buat mulai ngerjain flow izin. [Kontrak API dan skema Firestore](docs/sprint-2-contract.md)
+
+Asisten membuka **Review izin sesi ini** dari rekap sesi. Praktikan membuka **Status Izin Saya** dari beranda. Hasil AI adalah saran; keputusan asisten tetap dapat dicatat saat AI belum tersedia. [Handoff SRS-05](docs/srs05-handoff.md) · [Handoff dan pengujian SRS-06](docs/srs06-handoff.md)
 
 ## 🛠️ Checks
 

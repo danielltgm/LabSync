@@ -18,6 +18,7 @@ export interface ConfirmationModalProps {
   cancelLabel?: string;
   variant?: 'primary' | 'danger';
   confirmDisabled?: boolean;
+  cancelDisabled?: boolean;
 }
 
 export function ConfirmationModal({
@@ -30,6 +31,7 @@ export function ConfirmationModal({
   cancelLabel = 'Batal',
   variant = 'primary',
   confirmDisabled = false,
+  cancelDisabled = false,
 }: ConfirmationModalProps) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
@@ -56,8 +58,10 @@ export function ConfirmationModal({
           <View style={styles.actions}>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ disabled: cancelDisabled }}
+              disabled={cancelDisabled}
               onPress={onCancel}
-              style={({ pressed }) => [styles.button, styles.cancelButton, pressed && styles.pressed]}
+              style={({ pressed }) => [styles.button, styles.cancelButton, cancelDisabled && styles.disabled, pressed && styles.pressed]}
             >
               <Text style={styles.cancelLabel}>{cancelLabel}</Text>
             </Pressable>
