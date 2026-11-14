@@ -15,6 +15,7 @@ interface LabSyncContextValue {
   openSession: (id: string) => void;
   closeSession: (id: string) => void;
   logout: () => void;
+  retrySessions: () => void;
 }
 
 const LabSyncContext = createContext<LabSyncContextValue | null>(null);
@@ -60,6 +61,7 @@ function AccountProvider({ children, uid }: { children: ReactNode; uid: string }
 }
 
 function SessionProvider({ children, profile, logout }: { children: ReactNode; profile: UserProfile; logout: () => void }) {
+  const [attempt, setAttempt] = useState(0);
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [readError, setReadError] = useState('');
@@ -95,7 +97,7 @@ function SessionProvider({ children, profile, logout }: { children: ReactNode; p
       stopClasses();
       stopSessions.forEach((stop) => stop());
     };
-  }, [profile]);
+  }, [profile, attempt]);
 
   const changeStatus = (id: string, status: 'DIBUKA' | 'SELESAI') => {
     if (!firebase) return;
@@ -111,6 +113,7 @@ function SessionProvider({ children, profile, logout }: { children: ReactNode; p
       openSession: (id) => changeStatus(id, 'DIBUKA'),
       closeSession: (id) => changeStatus(id, 'SELESAI'),
       logout,
+      retrySessions: () => { setWriteError(''); setAttempt((current) => current + 1); },
     }}>
       {children}
     </LabSyncContext.Provider>

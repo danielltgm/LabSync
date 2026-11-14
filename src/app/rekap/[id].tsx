@@ -8,7 +8,7 @@ import { useAttendance } from '@/hooks/use-attendance';
 export default function SessionRecapScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const id = typeof params.id === 'string' ? params.id : undefined;
-  const { sessions, activeUser, loadingSessions, error, openSession, closeSession } = useLabSync();
+  const { sessions, activeUser, loadingSessions, error, openSession, closeSession, retrySessions } = useLabSync();
   const session = activeUser.role === 'ASISTEN' ? sessions.find((item) => item.id === id) : undefined;
   const attendance = useAttendance(undefined, session?.classId, session?.id);
 
@@ -20,6 +20,7 @@ export default function SessionRecapScreen() {
       activeUser={activeUser}
       notice={attendance.error || error}
       loading={attendance.loading || loadingSessions}
+      onRetry={() => { attendance.retry(); retrySessions(); }}
       onBack={() => router.canGoBack() ? router.back() : router.replace('/')}
       sessionControls={session && (
         <SessionControlAction sessionId={session.id} status={session.status} role={activeUser.role}

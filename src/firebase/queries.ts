@@ -1,9 +1,10 @@
 import { collection, doc, onSnapshot, query, runTransaction, where, type Firestore } from 'firebase/firestore';
 
-import type { AttendanceRecord } from '@/types/attendance';
+import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { SessionStatus } from '@/types/session';
 import type { AttendanceDocument, LiveSession, SessionDocument, UserDocument } from '@/types/sprint2';
 import type { UserProfile } from '@/types/user';
+import { toAttendanceRecord } from '@/utils/attendance-view';
 
 type OnError = (error: Error) => void;
 
@@ -43,22 +44,12 @@ export function updateSessionStatus(db: Firestore, sessionId: string, status: Ex
 
 type AttendanceScope = { studentUid: string } | { classId: string; sessionId: string };
 
-export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange: (records: AttendanceRecord[]) => void, onError: OnError) {
+export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange: (records: LiveAttendanceRecord[]) => void, onError: OnError) {
   const records = collection(db, 'attendance');
   const scoped = 'studentUid' in scope
     ? query(records, where('studentUid', '==', scope.studentUid))
     : query(records, where('classId', '==', scope.classId), where('sessionId', '==', scope.sessionId));
 
-  return onSnapshot(scoped, (snapshot) => onChange(snapshot.docs.map((item) => {
-    const { checkedInAt, sessionId, studentId, studentName, className, notes } = item.data() as AttendanceDocument;
-    return {
-      id: item.id,
-      sessionId,
-      studentId,
-      studentName,
-      className,
-      notes,
-      checkInTime: checkedInAt.toDate().toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false }).replaceAll('.', ':'),
-    };
-  })), onError);
+  return onSnapshot(scoped, (snapshot) => onChange(snapshot.docs.map((item) =>
+    toAttendanceRecord(item.id, item.data() as AttendanceDocument))), onError);
 }

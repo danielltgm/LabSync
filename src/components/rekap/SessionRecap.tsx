@@ -8,25 +8,27 @@ import { AttendanceListItem } from '@/components/rekap/AttendanceListItem';
 import { AttendanceScreenHeader } from '@/components/rekap/AttendanceScreenHeader';
 import { AttendanceSummaryCard } from '@/components/rekap/AttendanceSummaryCard';
 import { LabSyncColors as colors, LabSyncRadii as radii, LabSyncSpacing as space, LabSyncTypography as type } from '@/constants/labsync-theme';
-import type { AttendanceRecord } from '@/types/attendance';
+import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { Session } from '@/types/session';
 import type { UserProfile } from '@/types/user';
 
 export interface SessionRecapProps {
   sessionId?: string;
   sessions: readonly Session[];
-  attendances: readonly AttendanceRecord[];
+  attendances: readonly LiveAttendanceRecord[];
   activeUser?: UserProfile;
   onBack: () => void;
   notice?: string;
   loading?: boolean;
   sessionControls?: ReactNode;
+  onRetry?: () => void;
 }
 
-export function SessionRecap({ sessionId, sessions, attendances, activeUser, onBack, notice, loading, sessionControls }: SessionRecapProps) {
+export function SessionRecap({ sessionId, sessions, attendances, activeUser, onBack, notice, loading, sessionControls, onRetry }: SessionRecapProps) {
   const session = sessions.find((item) => item.id === sessionId);
   const permitted = activeUser?.role === 'ASISTEN' && !!session;
-  const records = permitted ? attendances.filter((item) => item.sessionId === sessionId) : [];
+  const records = permitted ? attendances.filter((item) => item.sessionId === sessionId)
+    .sort((a, b) => (a.checkedInAtMillis ?? 0) - (b.checkedInAtMillis ?? 0) || a.id.localeCompare(b.id)) : [];
 
   return (
     <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.screen}>
@@ -36,7 +38,7 @@ export function SessionRecap({ sessionId, sessions, attendances, activeUser, onB
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View style={styles.header}>
-            <AttendanceScreenHeader title="Rekap Kehadiran" onBack={onBack} notice={notice} />
+            <AttendanceScreenHeader title="Rekap Kehadiran" onBack={onBack} notice={notice} onRetry={onRetry} />
             {permitted && session && (
               <>
                 <View style={styles.session}>
@@ -49,7 +51,7 @@ export function SessionRecap({ sessionId, sessions, attendances, activeUser, onB
                   <Text style={styles.body}>Asisten: {session.assistantName}</Text>
                   {sessionControls}
                 </View>
-                <AttendanceSummaryCard total={records.length} />
+                {!loading && !notice && <AttendanceSummaryCard total={records.length} />}
                 <Text accessibilityRole="header" style={styles.section}>Daftar hadir</Text>
               </>
             )}

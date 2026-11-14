@@ -5,7 +5,7 @@ import { useLabSync } from '@/context/LabSyncContext';
 import { useAttendance } from '@/hooks/use-attendance';
 
 export default function AttendanceHistoryScreen() {
-  const { activeUser, sessions, loadingSessions, error } = useLabSync();
+  const { activeUser, sessions, loadingSessions, error, retrySessions } = useLabSync();
   const attendance = useAttendance(activeUser.role === 'PRAKTISAN' ? activeUser.id : undefined);
 
   return (
@@ -15,6 +15,7 @@ export default function AttendanceHistoryScreen() {
       attendances={attendance.records}
       notice={attendance.error || error}
       loading={attendance.loading || loadingSessions}
+      onRetry={() => { attendance.retry(); retrySessions(); }}
       onBack={() => router.canGoBack() ? router.back() : router.replace('/')}
     />
   );
