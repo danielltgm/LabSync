@@ -21,6 +21,7 @@ before(async () => {
       'classes/other': { assistantUid: 'another-assistant' },
       'enrollments/student/classes/mobile': {},
       'sessions/mobile-1': { classId: 'mobile', status: 'TERJADWAL' },
+      'sessions/mobile-2': { classId: 'mobile', status: 'TERJADWAL' },
       'sessions/other-1': { classId: 'other', status: 'TERJADWAL' },
       'attendance/mobile-1__student': { studentUid: 'student', classId: 'mobile', sessionId: 'mobile-1' },
       'attendance/other-1__outsider': { studentUid: 'outsider', classId: 'other', sessionId: 'other-1' },
@@ -93,3 +94,31 @@ test('only the class assistant can advance status and the student listener sees 
     stop?.();
   }
 });
+
+test('enrolled student can create a pending leave request and update its AI classification', async () => {
+  const student = account('student');
+  const outsider = account('outsider');
+  const leaveRef = doc(student, 'leaveRequests/mobile-2__student');
+  const validLeave = {
+    sessionId: 'mobile-2',
+    classId: 'mobile',
+    studentUid: 'student',
+    reason: 'Sakit demam dan harus istirahat',
+    classification: { status: 'pending' },
+    decision: 'pending',
+  };
+
+  await assertFails(setDoc(doc(outsider, 'leaveRequests/mobile-2__outsider'), { ...validLeave, studentUid: 'outsider' }));
+  await assertFails(setDoc(doc(student, 'leaveRequests/custom-id'), validLeave));
+  await assertFails(setDoc(leaveRef, { ...validLeave, reason: '' }));
+  await assertFails(setDoc(leaveRef, { ...validLeave, decision: 'approved' }));
+  await assertFails(setDoc(leaveRef, { ...validLeave, classId: 'other' }));
+
+  await assertSucceeds(setDoc(leaveRef, validLeave));
+  await assertFails(setDoc(leaveRef, { ...validLeave, reason: 'Alasan diubah' }));
+  await assertFails(updateDoc(leaveRef, { decision: 'approved' }));
+  await assertSucceeds(updateDoc(leaveRef, { classification: { status: 'classified', category: 'Sakit' } }));
+  await assertSucceeds(updateDoc(leaveRef, { classification: { status: 'unavailable' } }));
+  assert.equal((await getDoc(leaveRef)).data()?.reason, 'Sakit demam dan harus istirahat');
+});
+
