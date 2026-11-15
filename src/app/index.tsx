@@ -1,9 +1,12 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SessionCard } from '@/components/asisten/SessionCard';
 import { EmptyState } from '@/components/common/EmptyState';
+import { AttendanceFeedbackModal, findExistingAttendance } from '@/components/praktikan/AttendanceFeedbackModal';
+import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
 import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
 import {
   LabSyncColors as colors,
@@ -12,17 +15,47 @@ import {
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
+import { firebase } from '@/firebase/client';
+import { submitAttendance } from '@/firebase/queries';
 import { useAttendance } from '@/hooks/use-attendance';
+import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
+import type { Session } from '@/types/session';
 
 export default function HomeScreen() {
   const { sessions, activeUser, loadingSessions, error, openSession, closeSession, logout } = useLabSync();
   const isAssistant = activeUser.role === 'ASISTEN';
   const attendance = useAttendance(isAssistant ? undefined : activeUser.id);
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const [feedback, setFeedback] = useState<{ courseName: string; record: AttendanceRecord; isDuplicate: boolean } | null>(null);
+  const [submitError, setSubmitError] = useState('');
+
+  const handleSubmitAttendance = (payload: AttendancePayload) => {
+    const courseName = selectedSession?.courseName ?? '';
+    const existing = findExistingAttendance(attendance.records, payload.sessionId, payload.studentId);
+    if (existing) {
+      setSelectedSession(null);
+      setFeedback({ courseName, record: existing, isDuplicate: true });
+      return;
+    }
+    if (!firebase) return;
+    setSubmitError('');
+    void submitAttendance(firebase.db, activeUser.id, payload)
+      .then((result) => {
+        setSelectedSession(null);
+        setFeedback({ courseName, record: result.record, isDuplicate: result.isDuplicate });
+      })
+      .catch(() => {
+        setSelectedSession(null);
+        setSubmitError('Presensi gagal dikirim. Pastikan sesi masih dibuka dan koneksi stabil.');
+      });
+  };
+
+  const alertMessage = error || attendance.error || submitError;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <FlatList
-        data={sessions} 
+        data={sessions}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ItemSeparatorComponent={SessionSeparator}
@@ -44,7 +77,7 @@ export default function HomeScreen() {
               <Text accessibilityRole="header" style={styles.sectionTitle}>Jadwal praktikum</Text>
               {!loadingSessions && <Text style={styles.caption}>{sessions.length} sesi</Text>}
             </View>
-            {!!(error || attendance.error) && <Text accessibilityRole="alert" style={styles.body}>{error || attendance.error}</Text>}
+            {!!alertMessage && <Text accessibilityRole="alert" style={styles.body}>{alertMessage}</Text>}
           </View>
         }
         ListEmptyComponent={loadingSessions
@@ -59,8 +92,33 @@ export default function HomeScreen() {
             onViewRecap={(id) => router.push({ pathname: '/rekap/[id]', params: { id } })}
           />
         ) : (
-          <SessionPraktikanCard session={item} isAttended={attendance.records.some((record) => record.sessionId === item.id)} />
+          <SessionPraktikanCard
+            session={item}
+            isAttended={attendance.records.some((record) => record.sessionId === item.id)}
+            onPressAttendance={(session) => {
+              setSubmitError('');
+              setSelectedSession(session);
+            }}
+          />
         )}
+      />
+      <AttendanceFormModal
+        visible={!!selectedSession}
+        sessionId={selectedSession?.id ?? ''}
+        courseName={selectedSession?.courseName}
+        className={selectedSession?.className}
+        initialStudentId={activeUser.identifier}
+        initialStudentName={activeUser.name}
+        identityLocked
+        onClose={() => setSelectedSession(null)}
+        onSubmit={handleSubmitAttendance}
+      />
+      <AttendanceFeedbackModal
+        visible={!!feedback}
+        courseName={feedback?.courseName}
+        attendance={feedback?.record ?? null}
+        isDuplicate={feedback?.isDuplicate}
+        onClose={() => setFeedback(null)}
       />
     </SafeAreaView>
   );
