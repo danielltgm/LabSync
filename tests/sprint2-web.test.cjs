@@ -31,9 +31,9 @@ test('two accounts see a session open and close without a refresh', { timeout: 9
     await student.getByText('Sesi Belum Dibuka', { exact: true }).waitFor();
     await assistant.getByRole('button', { name: 'Buka Sesi', exact: true }).click();
     await assistant.getByRole('button', { name: 'Ya, Buka Sesi', exact: true }).click();
-    await student.getByText('Presensi belum tersedia', { exact: true }).waitFor();
-    const action = student.getByRole('button', { name: 'Presensi belum tersedia' });
-    assert.equal(await action.isEnabled(), false);
+    await student.getByText('Lakukan Presensi', { exact: true }).waitFor();
+    const action = student.getByRole('button', { name: 'Lakukan Presensi' });
+    assert.equal(await action.isEnabled(), true);
     await assistant.getByRole('button', { name: 'Tutup Sesi', exact: true }).click();
     await assistant.getByRole('button', { name: 'Ya, Tutup Sesi', exact: true }).click();
     await student.getByText('Sesi Selesai', { exact: true }).waitFor();
