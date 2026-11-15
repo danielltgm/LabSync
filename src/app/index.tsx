@@ -22,7 +22,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
       <FlatList
-        data={sessions}
+        data={sessions} 
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.content}
         ItemSeparatorComponent={SessionSeparator}
