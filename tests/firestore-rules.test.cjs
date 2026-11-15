@@ -93,3 +93,53 @@ test('only the class assistant can advance status and the student listener sees 
     stop?.();
   }
 });
+
+test('SRS-01: user self-registration creates profile with valid role and matching uid', async () => {
+  const newStudent = account('new-student');
+  const newAssistant = account('new-assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // Valid creation by owner with valid fields and role
+  await assertSucceeds(setDoc(doc(newStudent, 'users/new-student'), {
+    name: 'New Student',
+    identifier: '12345678',
+    role: 'PRAKTISAN',
+  }));
+
+  await assertSucceeds(setDoc(doc(newAssistant, 'users/new-assistant'), {
+    name: 'New Assistant',
+    identifier: 'AST-NEW',
+    role: 'ASISTEN',
+  }));
+
+  // Fails if attempting to create another user's profile
+  await assertFails(setDoc(doc(newStudent, 'users/another-user'), {
+    name: 'Attacker',
+    identifier: '99999999',
+    role: 'ASISTEN',
+  }));
+
+  // Fails if role is invalid
+  const invalidRoleUser = account('invalid-role');
+  await assertFails(setDoc(doc(invalidRoleUser, 'users/invalid-role'), {
+    name: 'Invalid Role',
+    identifier: '00000000',
+    role: 'ADMIN',
+  }));
+
+  // Fails if extra unauthorized fields are included
+  const extraFieldUser = account('extra-field');
+  await assertFails(setDoc(doc(extraFieldUser, 'users/extra-field'), {
+    name: 'Extra Field',
+    identifier: '11111111',
+    role: 'PRAKTISAN',
+    isAdmin: true,
+  }));
+
+  // Fails for unauthenticated user
+  await assertFails(setDoc(doc(unauthed, 'users/unauthed-user'), {
+    name: 'Unauthed',
+    identifier: '22222222',
+    role: 'PRAKTISAN',
+  }));
+});

@@ -27,8 +27,12 @@ async function seedDemo(projectId) {
     const db = getFirestore(app);
     const assistant = await demoUser(auth, 'assistant@labsync.example', 'Asisten Demo', emulator);
     const student = await demoUser(auth, 'student@labsync.example', 'Praktikan Demo', emulator);
+    const assistant2 = await demoUser(auth, 'assistant2@labsync.example', 'Asisten Dua Demo', emulator);
+    const student2 = await demoUser(auth, 'student2@labsync.example', 'Praktikan Dua Demo', emulator);
     const assistantUid = assistant.user.uid;
     const studentUid = student.user.uid;
+    const assistant2Uid = assistant2.user.uid;
+    const student2Uid = student2.user.uid;
 
     const session = db.doc('sessions/demo-mobile');
     await db.runTransaction(async (transaction) => {
@@ -39,8 +43,15 @@ async function seedDemo(projectId) {
       transaction.set(db.doc(`users/${studentUid}`), {
         name: 'Praktikan Demo', identifier: 'NIM-DEMO', role: 'PRAKTISAN',
       });
+      transaction.set(db.doc(`users/${assistant2Uid}`), {
+        name: 'Asisten Dua Demo', identifier: 'AST-DEMO2', role: 'ASISTEN',
+      });
+      transaction.set(db.doc(`users/${student2Uid}`), {
+        name: 'Praktikan Dua Demo', identifier: 'NIM-DEMO2', role: 'PRAKTISAN',
+      });
       transaction.set(db.doc('classes/demo-if3a'), { name: 'IF-3A Demo', assistantUid });
       transaction.set(db.doc(`enrollments/${studentUid}/classes/demo-if3a`), { enrolledAt: Timestamp.now() });
+      transaction.set(db.doc(`enrollments/${student2Uid}/classes/demo-if3a`), { enrolledAt: Timestamp.now() });
       if (!existingSession.exists) {
         transaction.create(session, {
           classId: 'demo-if3a', courseName: 'Pemrograman Mobile', className: 'IF-3A Demo',
@@ -49,7 +60,7 @@ async function seedDemo(projectId) {
         });
       }
     });
-    return [assistant, student].map(({ user, password }) => ({ email: user.email, password }));
+    return [assistant, student, assistant2, student2].map(({ user, password }) => ({ email: user.email, password }));
   } finally {
     await deleteApp(app);
   }
