@@ -40,15 +40,45 @@ service cloud.firestore {
     match /classes/{classId} {
       allow get: if enrolledIn(classId);
       allow read: if hasRole('ASISTEN') && isOwner(resource.data.assistantUid);
+      allow create: if hasRole('ASISTEN') &&
+        request.resource.data.assistantUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['name', 'assistantUid']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0;
+      allow update: if managesClass(classId) &&
+        request.resource.data.assistantUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly(['name', 'assistantUid']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0;
+      allow delete: if managesClass(classId);
     }
 
     match /enrollments/{uid}/classes/{classId} {
       allow read: if hasRole('PRAKTISAN') && isOwner(uid);
+      allow create: if managesClass(classId) &&
+        request.resource.data.keys().hasOnly(['enrolledAt']) &&
+        request.resource.data.enrolledAt is timestamp;
+      allow delete: if managesClass(classId);
     }
 
     match /sessions/{sessionId} {
       allow read: if enrolledIn(resource.data.classId) || managesClass(resource.data.classId);
-      allow update: if managesClass(resource.data.classId) && isValidSessionUpdate();
+      allow create: if managesClass(request.resource.data.classId) &&
+        request.resource.data.status == 'TERJADWAL' &&
+        request.resource.data.keys().hasOnly(['classId', 'courseName', 'className', 'labRoom', 'date', 'startTime', 'endTime', 'assistantName', 'status']) &&
+        request.resource.data.courseName is string &&
+        request.resource.data.className is string &&
+        request.resource.data.labRoom is string &&
+        request.resource.data.date is string &&
+        request.resource.data.startTime is string &&
+        request.resource.data.endTime is string &&
+        request.resource.data.assistantName is string;
+      allow update: if managesClass(resource.data.classId) &&
+        (isValidSessionUpdate() ||
+         (resource.data.status == 'TERJADWAL' &&
+          request.resource.data.status == 'TERJADWAL' &&
+          request.resource.data.classId == resource.data.classId));
+      allow delete: if managesClass(resource.data.classId) && resource.data.status == 'TERJADWAL';
     }
 
     match /attendance/{attendanceId} {

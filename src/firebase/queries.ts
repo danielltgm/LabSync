@@ -62,3 +62,55 @@ export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange:
     };
   })), onError);
 }
+
+export interface ManagedClass {
+  id: string;
+  name: string;
+  assistantUid: string;
+}
+
+export function watchClassesForAssistant(
+  db: Firestore,
+  assistantUid: string,
+  onChange: (classes: ManagedClass[]) => void,
+  onError?: OnError
+) {
+  const classesQuery = query(collection(db, 'classes'), where('assistantUid', '==', assistantUid));
+  return onSnapshot(
+    classesQuery,
+    (snapshot) => {
+      onChange(
+        snapshot.docs.map((item) => ({
+          id: item.id,
+          name: item.data().name as string,
+          assistantUid: item.data().assistantUid as string,
+        }))
+      );
+    },
+    onError
+  );
+}
+
+export function watchClass(
+  db: Firestore,
+  classId: string,
+  onChange: (cls: ManagedClass | null) => void,
+  onError?: OnError
+) {
+  return onSnapshot(
+    doc(db, 'classes', classId),
+    (snapshot) => {
+      if (!snapshot.exists()) {
+        onChange(null);
+        return;
+      }
+      onChange({
+        id: snapshot.id,
+        name: snapshot.data().name as string,
+        assistantUid: snapshot.data().assistantUid as string,
+      });
+    },
+    onError
+  );
+}
+
