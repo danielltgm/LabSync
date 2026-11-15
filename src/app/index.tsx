@@ -93,9 +93,14 @@ export default function HomeScreen() {
                 <Text style={styles.linkLabel}>Kelola Kelas & Sesi</Text>
               </Pressable>
             ) : (
-              <Pressable accessibilityRole="button" onPress={() => router.push('/history')} style={styles.button}>
-                <Text style={styles.linkLabel}>Riwayat Saya</Text>
-              </Pressable>
+              <View style={styles.header}>
+                <Pressable accessibilityRole="button" onPress={() => router.push('/history')} style={styles.button}>
+                  <Text style={styles.linkLabel}>Riwayat Saya</Text>
+                </Pressable>
+                <Pressable accessibilityRole="button" onPress={() => router.push('/izin')} style={styles.button}>
+                  <Text style={styles.linkLabel}>Status Izin Saya</Text>
+                </Pressable>
+              </View>
             )}
             <View style={styles.section}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>Jadwal praktikum</Text>

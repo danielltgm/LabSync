@@ -5,26 +5,25 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { AttendanceScreenHeader } from '@/components/rekap/AttendanceScreenHeader';
 import { LabSyncColors as colors, LabSyncRadii as radii, LabSyncSpacing as space, LabSyncTypography as type } from '@/constants/labsync-theme';
-import type { AttendanceRecord } from '@/types/attendance';
+import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { Session } from '@/types/session';
 import type { UserProfile } from '@/types/user';
+import { personalAttendance } from '@/utils/attendance-view';
 
 export interface AttendanceHistoryProps {
   activeUser?: UserProfile;
   sessions: readonly Session[];
-  attendances: readonly AttendanceRecord[];
+  attendances: readonly LiveAttendanceRecord[];
   onBack: () => void;
   notice?: string;
   loading?: boolean;
+  onRetry?: () => void;
 }
 
-export function AttendanceHistory({ activeUser, sessions, attendances, onBack, notice, loading }: AttendanceHistoryProps) {
+export function AttendanceHistory({ activeUser, sessions, attendances, onBack, notice, loading, onRetry }: AttendanceHistoryProps) {
   const permitted = activeUser?.role === 'PRAKTISAN';
-  const records = permitted ? attendances
-    .filter((item) => item.studentId === activeUser.identifier)
-    .map((attendance) => ({ attendance, session: sessions.find((item) => item.id === attendance.sessionId) }))
-    .sort((a, b) => (b.session?.date ?? '').localeCompare(a.session?.date ?? '')
-      || b.attendance.checkInTime.localeCompare(a.attendance.checkInTime)) : [];
+  const records = permitted ? personalAttendance(attendances, activeUser.id)
+    .map((attendance) => ({ attendance, session: sessions.find((item) => item.id === attendance.sessionId) })) : [];
 
   return (
     <SafeAreaView edges={['top', 'left', 'right', 'bottom']} style={styles.screen}>
@@ -34,12 +33,12 @@ export function AttendanceHistory({ activeUser, sessions, attendances, onBack, n
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <View style={styles.header}>
-            <AttendanceScreenHeader title="Riwayat Kehadiran Saya" onBack={onBack} notice={notice} />
+            <AttendanceScreenHeader title="Riwayat Kehadiran Saya" onBack={onBack} notice={notice} onRetry={onRetry} />
             {permitted && (
               <View style={styles.identity}>
                 <Text accessibilityRole="header" style={styles.heading}>{activeUser.name}</Text>
                 <Text style={styles.body}>NIM {activeUser.identifier}</Text>
-                <Text style={styles.body}>Total kehadiran: {records.length} sesi</Text>
+                {!loading && !notice && <Text style={styles.body}>Total kehadiran: {records.length} sesi</Text>}
               </View>
             )}
           </View>

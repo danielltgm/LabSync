@@ -17,8 +17,12 @@ test('two accounts see a session open and close without a refresh', { timeout: 9
   const assistant = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const student = await browser.newPage({ viewport: { width: 360, height: 800 } });
   const browserErrors = [];
+  const httpErrors = [];
   for (const page of [assistant, student]) {
     page.on('pageerror', (error) => browserErrors.push(error.message));
+    page.on('response', (response) => {
+      if (response.status() >= 400) httpErrors.push(`${response.status()} ${new URL(response.url()).pathname}`);
+    });
     page.on('console', (message) => {
       if (message.type() === 'error') browserErrors.push(message.text());
     });
@@ -45,7 +49,7 @@ test('two accounts see a session open and close without a refresh', { timeout: 9
     await student.getByRole('button', { name: 'Kembali' }).click();
     await student.getByRole('button', { name: 'Keluar', exact: true }).click();
     await student.getByLabel('Email').waitFor();
-    assert.deepEqual(browserErrors, []);
+    assert.deepEqual(browserErrors, [], `Browser errors; failed requests: ${httpErrors.join(', ')}`);
   } finally {
     await browser.close();
   }

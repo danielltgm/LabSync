@@ -47,7 +47,9 @@
     "firebase:emulators": "npx -y firebase-tools@latest emulators:start --only auth,firestore --project demo-labsync",
     "firebase:seed": "node scripts/seed-firebase.cjs",
     "test:rules": "npx -y firebase-tools@latest emulators:exec --only firestore --project demo-labsync \"node --test tests/firestore-rules.test.cjs\"",
-    "test:web": "node --test tests/sprint2-web.test.cjs"
+    "test:web": "node --test tests/sprint2-web.test.cjs",
+    "test:views": "node --test tests/attendance-view.test.cjs tests/leave-request.test.cjs",
+    "test:srs05-06": "node --test tests/srs05-06-web.test.cjs"
   },
   "private": true
 }

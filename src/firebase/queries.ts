@@ -1,37 +1,15 @@
 import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
 
-import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
 import { resolveLeaveClassification } from '@/firebase/ai-classifier';
+import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
+import type { ClassifyLeaveReason, LeaveClassification } from '@/types/sprint2';
+import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { SessionStatus } from '@/types/session';
-import type {
-  AttendanceDocument,
-  ClassifyLeaveReason,
-  LeaveClassification,
-  LeaveRequestDocument,
-  LiveSession,
-  SessionDocument,
-  UserDocument,
-} from '@/types/sprint2';
+import type { AttendanceDocument, LiveSession, SessionDocument, UserDocument } from '@/types/sprint2';
 import type { UserProfile } from '@/types/user';
+import { toAttendanceRecord } from '@/utils/attendance-view';
 
 type OnError = (error: Error) => void;
-
-function formatJakartaTime(date: Date) {
-  return date.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false }).replaceAll('.', ':');
-}
-
-function toAttendanceRecord(id: string, data: AttendanceDocument): AttendanceRecord {
-  const { checkedInAt, sessionId, studentId, studentName, className, notes } = data;
-  return {
-    id,
-    sessionId,
-    studentId,
-    studentName,
-    className,
-    notes,
-    checkInTime: formatJakartaTime(checkedInAt ? checkedInAt.toDate() : new Date()),
-  };
-}
 
 export function watchProfile(db: Firestore, uid: string, onChange: (profile: UserProfile | null) => void, onError: OnError) {
   return onSnapshot(doc(db, 'users', uid), (snapshot) => {
@@ -65,6 +43,10 @@ export function updateSessionStatus(db: Firestore, sessionId: string, status: Ex
     if (current !== expected) throw new Error('Session status has changed');
     transaction.update(ref, { status });
   });
+}
+
+function formatJakartaTime(date: Date) {
+  return date.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false }).replaceAll('.', ':');
 }
 
 export function submitAttendance(db: Firestore, studentUid: string, payload: AttendancePayload) {
@@ -121,17 +103,14 @@ export function submitAttendance(db: Firestore, studentUid: string, payload: Att
 
 type AttendanceScope = { studentUid: string } | { classId: string; sessionId: string };
 
-export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange: (records: AttendanceRecord[]) => void, onError: OnError) {
+export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange: (records: LiveAttendanceRecord[]) => void, onError: OnError) {
   const records = collection(db, 'attendance');
   const scoped = 'studentUid' in scope
     ? query(records, where('studentUid', '==', scope.studentUid))
     : query(records, where('classId', '==', scope.classId), where('sessionId', '==', scope.sessionId));
 
-  return onSnapshot(
-    scoped,
-    (snapshot) => onChange(snapshot.docs.map((item) => toAttendanceRecord(item.id, item.data() as AttendanceDocument))),
-    onError,
-  );
+  return onSnapshot(scoped, (snapshot) => onChange(snapshot.docs.map((item) =>
+    toAttendanceRecord(item.id, item.data() as AttendanceDocument))), onError);
 }
 
 export interface ManagedClass {
@@ -185,54 +164,10 @@ export function watchClass(
   );
 }
 
-export interface LeaveRequestRecord {
-  id: string;
-  sessionId: string;
-  classId: string;
-  studentUid: string;
-  reason: string;
-  submittedTime: string;
-  classification: LeaveClassification;
-  decision: LeaveRequestDocument['decision'];
-}
-
-type LeaveRequestScope = { studentUid: string } | { classId: string; sessionId?: string };
-
 export interface SubmitLeaveInput {
   sessionId: string;
   classId: string;
   reason: string;
-}
-
-export function watchLeaveRequests(
-  db: Firestore,
-  scope: LeaveRequestScope,
-  onChange: (records: LeaveRequestRecord[]) => void,
-  onError: OnError,
-) {
-  const requests = collection(db, 'leaveRequests');
-  const scoped = 'studentUid' in scope
-    ? query(requests, where('studentUid', '==', scope.studentUid))
-    : scope.sessionId
-      ? query(requests, where('classId', '==', scope.classId), where('sessionId', '==', scope.sessionId))
-      : query(requests, where('classId', '==', scope.classId));
-
-  return onSnapshot(scoped, (snapshot) => onChange(snapshot.docs.map((item) => {
-    const data = item.data() as LeaveRequestDocument;
-    const submittedDate = data.submittedAt && typeof data.submittedAt.toDate === 'function'
-      ? data.submittedAt.toDate()
-      : new Date();
-    return {
-      id: item.id,
-      sessionId: data.sessionId,
-      classId: data.classId,
-      studentUid: data.studentUid,
-      reason: data.reason,
-      submittedTime: submittedDate.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false }).replaceAll('.', ':'),
-      classification: data.classification,
-      decision: data.decision,
-    };
-  })), onError);
 }
 
 export async function submitLeaveRequest(
