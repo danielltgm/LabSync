@@ -42,6 +42,25 @@ service cloud.firestore {
         get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.status == 'DIBUKA';
     }
 
+    function canCreateLeaveRequest(requestId, data) {
+      return isOwner(data.studentUid) &&
+        enrolledIn(data.classId) &&
+        requestId == data.sessionId + '__' + request.auth.uid &&
+        data.reason is string &&
+        data.reason.size() > 0 &&
+        data.decision == 'pending' &&
+        data.classification.status in ['pending', 'classified', 'unavailable'] &&
+        exists(/databases/$(database)/documents/sessions/$(data.sessionId)) &&
+        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId;
+    }
+
+    function canUpdateLeaveClassification() {
+      return isOwner(resource.data.studentUid) &&
+        resource.data.decision == 'pending' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classification']) &&
+        request.resource.data.classification.status in ['classified', 'unavailable'];
+    }
+
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow create: if isOwner(uid) &&
@@ -104,6 +123,8 @@ service cloud.firestore {
 
     match /leaveRequests/{requestId} {
       allow read: if canReadStudentRecord(resource.data);
+      allow create: if canCreateLeaveRequest(requestId, request.resource.data);
+      allow update: if canUpdateLeaveClassification();
     }
   }
 }

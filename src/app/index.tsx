@@ -7,6 +7,7 @@ import { SessionCard } from '@/components/asisten/SessionCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { AttendanceFeedbackModal, findExistingAttendance } from '@/components/praktikan/AttendanceFeedbackModal';
 import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
+import { LeaveRequestModal } from '@/components/praktikan/LeaveRequestModal';
 import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
 import {
   LabSyncColors as colors,
@@ -16,10 +17,12 @@ import {
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
 import { firebase } from '@/firebase/client';
-import { submitAttendance } from '@/firebase/queries';
+import { submitAttendance, submitLeaveRequest } from '@/firebase/queries';
 import { useAttendance } from '@/hooks/use-attendance';
 import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
 import type { Session } from '@/types/session';
+import { useLeaveRequests } from '@/hooks/use-leave-requests';
+import type { LiveSession } from '@/types/sprint2';
 
 export default function HomeScreen() {
   const { sessions, activeUser, loadingSessions, error, openSession, closeSession, logout } = useLabSync();
@@ -50,7 +53,24 @@ export default function HomeScreen() {
       });
   };
 
-  const alertMessage = error || attendance.error || submitError;
+  const leaveRequests = useLeaveRequests(isAssistant ? undefined : activeUser.id);
+  const [selectedLeaveSession, setSelectedLeaveSession] = useState<LiveSession | null>(null);
+  const [leaveActionError, setLeaveActionError] = useState<string | null>(null);
+
+  const handleSubmitLeave = async ({ reason }: { sessionId: string; reason: string }) => {
+    if (!firebase || !selectedLeaveSession) {
+      throw new Error('Layanan Firebase belum siap.');
+    }
+    setLeaveActionError(null);
+    await submitLeaveRequest(firebase.db, activeUser.id, {
+      sessionId: selectedLeaveSession.id,
+      classId: selectedLeaveSession.classId,
+      reason,
+    });
+    setSelectedLeaveSession(null);
+  };
+
+  const activeBannerError = error || attendance.error || leaveRequests.error || leaveActionError || submitError;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -81,7 +101,7 @@ export default function HomeScreen() {
               <Text accessibilityRole="header" style={styles.sectionTitle}>Jadwal praktikum</Text>
               {!loadingSessions && <Text style={styles.caption}>{sessions.length} sesi</Text>}
             </View>
-            {!!alertMessage && <Text accessibilityRole="alert" style={styles.body}>{alertMessage}</Text>}
+            {!!activeBannerError && <Text accessibilityRole="alert" style={styles.body}>{activeBannerError}</Text>}
           </View>
         }
         ListEmptyComponent={loadingSessions
@@ -102,6 +122,11 @@ export default function HomeScreen() {
             onPressAttendance={(session) => {
               setSubmitError('');
               setSelectedSession(session);
+            }}
+            leaveRequest={leaveRequests.records.find((leave) => leave.sessionId === item.id)}
+            onPressLeave={() => {
+              setLeaveActionError(null);
+              setSelectedLeaveSession(item);
             }}
           />
         )}
@@ -124,6 +149,18 @@ export default function HomeScreen() {
         isDuplicate={feedback?.isDuplicate}
         onClose={() => setFeedback(null)}
       />
+      {!isAssistant && selectedLeaveSession ? (
+        <LeaveRequestModal
+          visible={Boolean(selectedLeaveSession)}
+          sessionId={selectedLeaveSession.id}
+          courseName={selectedLeaveSession.courseName}
+          className={selectedLeaveSession.className}
+          studentId={activeUser.identifier}
+          studentName={activeUser.name}
+          onClose={() => setSelectedLeaveSession(null)}
+          onSubmit={handleSubmitLeave}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

@@ -1,8 +1,17 @@
-import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where, type Firestore } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
 
 import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
+import { resolveLeaveClassification } from '@/firebase/ai-classifier';
 import type { SessionStatus } from '@/types/session';
-import type { AttendanceDocument, LiveSession, SessionDocument, UserDocument } from '@/types/sprint2';
+import type {
+  AttendanceDocument,
+  ClassifyLeaveReason,
+  LeaveClassification,
+  LeaveRequestDocument,
+  LiveSession,
+  SessionDocument,
+  UserDocument,
+} from '@/types/sprint2';
 import type { UserProfile } from '@/types/user';
 
 type OnError = (error: Error) => void;
@@ -174,5 +183,110 @@ export function watchClass(
     },
     onError
   );
+}
+
+export interface LeaveRequestRecord {
+  id: string;
+  sessionId: string;
+  classId: string;
+  studentUid: string;
+  reason: string;
+  submittedTime: string;
+  classification: LeaveClassification;
+  decision: LeaveRequestDocument['decision'];
+}
+
+type LeaveRequestScope = { studentUid: string } | { classId: string; sessionId?: string };
+
+export interface SubmitLeaveInput {
+  sessionId: string;
+  classId: string;
+  reason: string;
+}
+
+export function watchLeaveRequests(
+  db: Firestore,
+  scope: LeaveRequestScope,
+  onChange: (records: LeaveRequestRecord[]) => void,
+  onError: OnError,
+) {
+  const requests = collection(db, 'leaveRequests');
+  const scoped = 'studentUid' in scope
+    ? query(requests, where('studentUid', '==', scope.studentUid))
+    : scope.sessionId
+      ? query(requests, where('classId', '==', scope.classId), where('sessionId', '==', scope.sessionId))
+      : query(requests, where('classId', '==', scope.classId));
+
+  return onSnapshot(scoped, (snapshot) => onChange(snapshot.docs.map((item) => {
+    const data = item.data() as LeaveRequestDocument;
+    const submittedDate = data.submittedAt && typeof data.submittedAt.toDate === 'function'
+      ? data.submittedAt.toDate()
+      : new Date();
+    return {
+      id: item.id,
+      sessionId: data.sessionId,
+      classId: data.classId,
+      studentUid: data.studentUid,
+      reason: data.reason,
+      submittedTime: submittedDate.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false }).replaceAll('.', ':'),
+      classification: data.classification,
+      decision: data.decision,
+    };
+  })), onError);
+}
+
+export async function submitLeaveRequest(
+  db: Firestore,
+  studentUid: string,
+  input: SubmitLeaveInput,
+  classifier?: ClassifyLeaveReason,
+): Promise<{ id: string; classification: LeaveClassification }> {
+  const cleanReason = input.reason.trim();
+  if (!cleanReason) {
+    throw new Error('Alasan izin wajib diisi.');
+  }
+
+  const requestId = `${input.sessionId}__${studentUid}`;
+  const sessionRef = doc(db, 'sessions', input.sessionId);
+  const leaveRef = doc(db, 'leaveRequests', requestId);
+
+  await runTransaction(db, async (transaction) => {
+    const [sessionSnap, leaveSnap] = await Promise.all([
+      transaction.get(sessionRef),
+      transaction.get(leaveRef),
+    ]);
+
+    if (!sessionSnap.exists()) {
+      throw new Error('Sesi praktikum tidak ditemukan.');
+    }
+
+    const sessionData = sessionSnap.data() as SessionDocument;
+    if (sessionData.classId !== input.classId) {
+      throw new Error('Kelas sesi praktikum tidak sesuai.');
+    }
+
+    if (leaveSnap.exists()) {
+      throw new Error('Pengajuan izin untuk sesi ini sudah dikirim.');
+    }
+
+    transaction.set(leaveRef, {
+      sessionId: input.sessionId,
+      classId: sessionData.classId,
+      studentUid,
+      reason: cleanReason,
+      submittedAt: serverTimestamp(),
+      classification: { status: 'pending' },
+      decision: 'pending',
+    });
+  });
+
+  const classification = await resolveLeaveClassification(cleanReason, classifier);
+  try {
+    await updateDoc(leaveRef, { classification });
+  } catch {
+    // Jika pembaruan klasifikasi terkendala jaringan, pengajuan izin tetap tersimpan untuk direview asisten.
+  }
+
+  return { id: requestId, classification };
 }
 
