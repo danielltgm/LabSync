@@ -12,6 +12,7 @@ export interface StatusBadgeProps {
   status: SessionStatus;
 }
 
+// Status is never colour-only: each state carries its own glyph and written label.
 const statusConfig = {
   TERJADWAL: { label: 'TERJADWAL', icon: '◷', colors: LabSyncColors.neutral },
   DIBUKA: { label: 'DIBUKA (AKTIF)', icon: '●', colors: LabSyncColors.success },
@@ -19,18 +20,18 @@ const statusConfig = {
 } as const;
 
 export function StatusBadge({ status }: StatusBadgeProps) {
-  const { label, icon } = statusConfig[status];
+  const { label, icon, colors } = statusConfig[status];
 
   return (
     <View
       accessible
       accessibilityLabel={`Status sesi: ${label}`}
-      style={[styles.badge, styles[status]]}
+      style={[styles.badge, { backgroundColor: colors.background, borderColor: colors.border }]}
     >
-      <Text importantForAccessibility="no" style={[styles.label, styles[`${status}_TEXT`]]}>
+      <Text importantForAccessibility="no" style={[styles.icon, { color: colors.solid }]}>
         {icon}
       </Text>
-      <Text style={[styles.label, styles[`${status}_TEXT`]]}>{label}</Text>
+      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
     </View>
   );
 }
@@ -39,33 +40,24 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf: 'flex-start',
     maxWidth: '100%',
+    flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: LabSyncSpacing.xs,
-    paddingVertical: LabSyncSpacing.xs,
-    paddingHorizontal: 10,
+    gap: 6,
+    paddingVertical: 3,
+    paddingHorizontal: LabSyncSpacing.sm,
     borderWidth: 1,
-    borderRadius: LabSyncRadii.full,
+    borderRadius: LabSyncRadii.sm,
   },
+  icon: { ...LabSyncTypography.caption, fontSize: 12, lineHeight: 16 },
   label: {
     ...LabSyncTypography.caption,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
+    letterSpacing: 0.6,
     flexShrink: 1,
   },
-  TERJADWAL: {
-    backgroundColor: statusConfig.TERJADWAL.colors.background,
-    borderColor: statusConfig.TERJADWAL.colors.border,
-  },
-  DIBUKA: {
-    backgroundColor: statusConfig.DIBUKA.colors.background,
-    borderColor: statusConfig.DIBUKA.colors.border,
-  },
-  SELESAI: {
-    backgroundColor: statusConfig.SELESAI.colors.background,
-    borderColor: statusConfig.SELESAI.colors.border,
-  },
-  TERJADWAL_TEXT: { color: statusConfig.TERJADWAL.colors.text },
-  DIBUKA_TEXT: { color: statusConfig.DIBUKA.colors.text },
-  SELESAI_TEXT: { color: statusConfig.SELESAI.colors.text },
 });
 
 export default StatusBadge;

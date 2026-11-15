@@ -1,19 +1,11 @@
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Button,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
+import { ActionRow, Button, Notice, PageHeader, Panel, TextField } from '@/components/common/ui';
+import { jakartaNow, ScheduleFields } from '@/components/manage/ScheduleFields';
 import {
   LabSyncColors as colors,
-  LabSyncRadii as radii,
   LabSyncSpacing as space,
-  LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import type { SessionInput } from '@/services/sessionService';
 
@@ -21,6 +13,7 @@ interface SessionFormProps {
   classId: string;
   defaultClassName?: string;
   defaultAssistantName?: string;
+  initialSession?: SessionInput;
   onSubmit: (input: SessionInput) => Promise<{ success: boolean; error?: string }>;
   onCancel: () => void;
 }
@@ -29,17 +22,19 @@ export function SessionForm({
   classId,
   defaultClassName = '',
   defaultAssistantName = '',
+  initialSession,
   onSubmit,
   onCancel,
 }: SessionFormProps) {
-  const [courseName, setCourseName] = useState('');
-  const [className, setClassName] = useState(defaultClassName);
-  const [labRoom, setLabRoom] = useState('Lab Komputer');
-  const [date, setDate] = useState('2026-11-20');
-  const [startTime, setStartTime] = useState('08:00');
-  const [endTime, setEndTime] = useState('10:00');
-  const [assistantName, setAssistantName] = useState(defaultAssistantName);
+  const [courseName, setCourseName] = useState(initialSession?.courseName ?? '');
+  const [className, setClassName] = useState(initialSession?.className ?? defaultClassName);
+  const [labRoom, setLabRoom] = useState(initialSession?.labRoom ?? '');
+  const [date, setDate] = useState(() => initialSession?.date ?? jakartaNow().date);
+  const [startTime, setStartTime] = useState(initialSession?.startTime ?? '08:00');
+  const [endTime, setEndTime] = useState(initialSession?.endTime ?? '09:00');
+  const [assistantName, setAssistantName] = useState(initialSession?.assistantName ?? defaultAssistantName);
 
+  const [showDetails, setShowDetails] = useState(!className || !assistantName);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -59,7 +54,7 @@ export function SessionForm({
       });
 
       if (!result.success) {
-        setError(result.error ?? 'Gagal membuat sesi praktikum.');
+        setError(result.error ?? 'Gagal menyimpan sesi praktikum.');
       }
     } finally {
       setBusy(false);
@@ -68,104 +63,53 @@ export function SessionForm({
 
   return (
     <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-      <View style={styles.formCard}>
-        <Text style={styles.heading}>Buat Jadwal Sesi Praktikum</Text>
-        <Text style={styles.subtext}>
-          Isi detail sesi praktikum baru. Status awal sesi akan otomatis menjadi TERJADWAL.
-        </Text>
+      <PageHeader
+        title={initialSession ? 'Edit jadwal sesi' : 'Buat jadwal sesi'}
+        subtitle={[className, assistantName].filter(Boolean).join(' · ') || undefined}
+      />
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Nama Mata Praktikum</Text>
-          <TextInput
-            placeholder="Contoh: Pemrograman Mobile"
-            style={styles.input}
-            value={courseName}
-            onChangeText={setCourseName}
-            editable={!busy}
-          />
+      <Panel style={styles.formCard}>
+        <TextField
+          label="Nama Mata Praktikum"
+          accessibilityLabel="Nama Praktikum"
+          placeholder="Contoh: Pemrograman Mobile"
+          value={courseName}
+          onChangeText={setCourseName}
+          editable={!busy}
+        />
+
+        <TextField label="Ruang Laboratorium" placeholder="Contoh: Lab RPL / Lab Jaringan"
+          value={labRoom} onChangeText={setLabRoom} editable={!busy} />
+
+        <ScheduleFields date={date} startTime={startTime} endTime={endTime} disabled={busy}
+          onDateChange={setDate} onStartChange={setStartTime} onEndChange={setEndTime} />
+
+        <View style={styles.details}>
+          <Button compact variant="quiet" label={showDetails ? 'Tutup detail' : 'Ubah kelas atau asisten'}
+            onPress={() => setShowDetails(!showDetails)} disabled={busy} style={styles.detailsToggle} />
+          {showDetails && (
+            <View style={styles.grid}>
+              <TextField label="Nama Kelas" value={className} onChangeText={setClassName} editable={!busy} style={styles.half} />
+              <TextField label="Nama Asisten Pengampu" value={assistantName} onChangeText={setAssistantName}
+                editable={!busy} style={styles.half} />
+            </View>
+          )}
         </View>
 
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Nama Kelas</Text>
-          <TextInput
-            placeholder="Contoh: IF-3A"
-            style={styles.input}
-            value={className}
-            onChangeText={setClassName}
-            editable={!busy}
-          />
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Ruang Laboratorium</Text>
-          <TextInput
-            placeholder="Contoh: Lab RPL / Lab Jaringan"
-            style={styles.input}
-            value={labRoom}
-            onChangeText={setLabRoom}
-            editable={!busy}
-          />
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Tanggal (YYYY-MM-DD)</Text>
-          <TextInput
-            placeholder="YYYY-MM-DD"
-            style={styles.input}
-            value={date}
-            onChangeText={setDate}
-            editable={!busy}
-          />
-        </View>
-
-        <View style={styles.row}>
-          <View style={[styles.fieldGroup, styles.half]}>
-            <Text style={styles.label}>Jam Mulai (HH:mm)</Text>
-            <TextInput
-              placeholder="08:00"
-              style={styles.input}
-              value={startTime}
-              onChangeText={setStartTime}
-              editable={!busy}
-            />
-          </View>
-
-          <View style={[styles.fieldGroup, styles.half]}>
-            <Text style={styles.label}>Jam Selesai (HH:mm)</Text>
-            <TextInput
-              placeholder="10:00"
-              style={styles.input}
-              value={endTime}
-              onChangeText={setEndTime}
-              editable={!busy}
-            />
-          </View>
-        </View>
-
-        <View style={styles.fieldGroup}>
-          <Text style={styles.label}>Nama Asisten Pengampu</Text>
-          <TextInput
-            placeholder="Nama Lengkap Asisten"
-            style={styles.input}
-            value={assistantName}
-            onChangeText={setAssistantName}
-            editable={!busy}
-          />
-        </View>
-
-        {!!error && <Text style={styles.errorText}>{error}</Text>}
-
+        {!!error && <Notice tone="danger" message={error} alert />}
         {busy && <ActivityIndicator color={colors.primary} style={styles.loader} />}
 
-        <View style={styles.actions}>
-          <Button title="Batal" onPress={onCancel} disabled={busy} color={colors.textSecondary} />
+        <ActionRow style={styles.actions}>
+          <Button variant="quiet" label="Batal" onPress={onCancel} disabled={busy} />
           <Button
-            title={busy ? 'Menyimpan…' : 'Simpan Jadwal Sesi'}
+            variant="primary"
+            label={busy ? 'Menyimpan…' : 'Simpan Jadwal Sesi'}
             onPress={() => { void handleSubmit(); }}
-            disabled={busy || !courseName.trim() || !className.trim() || !labRoom.trim()}
+            disabled={busy || !courseName.trim() || !className.trim() || !labRoom.trim() || !assistantName.trim()}
+            style={styles.saveButton}
           />
-        </View>
-      </View>
+        </ActionRow>
+      </Panel>
     </ScrollView>
   );
 }
@@ -173,60 +117,18 @@ export function SessionForm({
 const styles = StyleSheet.create({
   container: {
     padding: space.lg,
+    paddingBottom: space.huge,
+    width: '100%',
+    maxWidth: 620,
+    alignSelf: 'center',
+    gap: space.xl,
   },
-  formCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: space.xl,
-    gap: space.md,
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-  },
-  heading: {
-    ...type.heading,
-    color: colors.text,
-  },
-  subtext: {
-    ...type.body,
-    color: colors.textSecondary,
-    marginBottom: space.sm,
-  },
-  fieldGroup: {
-    gap: space.xs,
-  },
-  label: {
-    ...type.caption,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  input: {
-    ...type.body,
-    color: colors.text,
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-    borderRadius: radii.sm,
-    minHeight: 44,
-    padding: space.md,
-    backgroundColor: colors.background,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: space.md,
-  },
-  half: {
-    flex: 1,
-  },
-  loader: {
-    marginVertical: space.xs,
-  },
-  errorText: {
-    ...type.caption,
-    color: colors.danger.text,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.md,
-    marginTop: space.md,
-  },
+  formCard: { gap: space.md },
+  details: { gap: space.sm },
+  detailsToggle: { alignSelf: 'flex-start' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.lg },
+  half: { flexGrow: 1, flexShrink: 1, flexBasis: 220 },
+  loader: { alignSelf: 'flex-start' },
+  actions: { justifyContent: 'flex-end', borderTopWidth: 1, borderColor: colors.rule, paddingTop: space.md },
+  saveButton: { flexGrow: 1, flexBasis: 160, maxWidth: 240 },
 });

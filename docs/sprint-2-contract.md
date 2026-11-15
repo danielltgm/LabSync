@@ -1,25 +1,33 @@
 # Sprint 2 foundation
 
-Firebase Auth is the source of UID. Firestore is the source of user roles, memberships, session state, attendance, and leave requests. Use the TypeScript contracts in [src/types/sprint2.ts](../src/types/sprint2.ts). The foundation provides seeded account login/logout, scoped session and attendance reads, and live open/close status. Registration, data-management UI, presensi submission, and leave actions are feature PRs.
+Firebase Auth is the source of UID. Firestore stores profiles, classes, sessions, attendance, and leave. Students can register from the app. The PM provisions or upgrades assistant profiles through trusted Admin access.
 
 ## Firestore
 
-| Path | Document fields | Read access in this scaffold |
+| Path | Document fields | Read access |
 | --- | --- | --- |
 | `users/{uid}` | `name`, `identifier` (NIM or assistant code), `role` (`ASISTEN` or the Sprint 1 enum value `PRAKTISAN`) | Own profile |
 | `classes/{classId}` | `name`, `assistantUid` | Enrolled student by ID, assigned assistant by ID or scoped query |
 | `enrollments/{uid}/classes/{classId}` | `enrolledAt` | Student's own enrollment list |
 | `sessions/{sessionId}` | `classId`, `courseName`, `className`, `labRoom`, `date` (YYYY-MM-DD), `startTime` and `endTime` (HH:mm, Jakarta), `assistantName`, `status` | Enrolled students and assigned assistant |
 | `attendance/{sessionId}__{uid}` | `sessionId`, `classId`, `studentUid`, `studentId` (NIM), `studentName`, `className`, `checkedInAt` (server timestamp), optional `notes` | Owning student and assigned assistant |
-| `leaveRequests/{sessionId}__{uid}` | `sessionId`, `classId`, `studentUid`, `reason`, `submittedAt`, `classification`, `decision`, optional `reviewedBy` and `reviewedAt` | Owning student and assigned assistant |
+| `leaveRequests/{sessionId}__{uid}` | `sessionId`, `classId`, `studentUid`, `reason`, `submittedAt`, `classification`, `decision`, optional `studentName`, `studentId`, `reviewedBy`, and `reviewedAt` | Owning student and assigned assistant |
 
 Assistant class discovery filters by `assistantUid == auth.uid`. Session listeners filter by one `classId` at a time. History filters by `studentUid == auth.uid`. Assistant recap and leave queues filter by `classId`, with `sessionId` when targeting a specific session. Add composite indexes alongside any new compound ordering and smoke-test them on shared dev.
 
-The scaffold permits the assigned assistant to update only session status in this order: `TERJADWAL → DIBUKA → SELESAI`. Other client writes are denied until the corresponding module supplies validation and rules tests. For attendance, use the deterministic document path and an online transaction to check that the session is open and the record is absent, then create one record. Use Firestore-generated session IDs so the two ID parts are unambiguous. The matching create rule must verify UID, enrollment, session status, and class. Preserve the original attendance on repeat submissions. Keep identity/role assignment and demo data seeding in trusted code.
+Assigned assistants can manage their classes and update scheduled sessions. Session status advances from `TERJADWAL` to `DIBUKA` to `SELESAI`. Attendance uses a transaction and a deterministic document ID. Firestore checks enrollment, identity, and session status before accepting the first record.
+
+## Class participants
+
+The class management screen loads participants from `GET /api/classes/{classId}/participants`. It uses the Firebase ID token of the assigned assistant. The server returns a paginated directory of registered students with only UID, name, NIM and membership in that class. The screen filters loaded names or NIMs and can request an exact NIM across the directory.
+
+Membership stays in `enrollments/{uid}/classes/{classId}` and uses the existing Firestore write rules. No migration is needed for classes already created. Shared dev requires Firebase Admin credentials on the Expo server.
 
 ## AI classification contract
 
-App-facing interface is `ClassifyLeaveReason({ reason }) → { category }`. For integration with Firestore, the app should request classification for its own stored leave request through an authenticated server. The proposed endpoint is `POST /leave-requests/{requestId}/classify` with a Firebase ID token in `Authorization: Bearer <token>`. The request has no body. A successful response includes `{ category }`; an upstream failure returns a retriable error and leaves the request available for review. The server loads the saved reason and forwards only that reason to the instructor API. It saves `classification` as `{ status: 'classified', category }`, or `{ status: 'unavailable' }` on failure. New requests start with `classification: { status: 'pending' }` and `decision: 'pending'`. The assigned assistant changes the decision independently and records reviewer UID and timestamp. The endpoint, authentication method, and category list for the instructor's API are pending. A local stub can implement the TypeScript interface while Agiel works on the flow.
+The app creates the leave with `classification.status = 'pending'` and `decision = 'pending'`. It calls `POST /api/leave-requests/{requestId}/classify` without a request body and with a Firebase ID token in the Authorization header. The server verifies ownership, reads the stored reason, and sends only that text to the Gemini API. Server-only env uses `INSTRUCTOR_AI_API_KEY` and optional `INSTRUCTOR_AI_MODEL`.
+
+The server saves `{ status: 'classified', category }` or `{ status: 'unavailable' }`. The student client cannot write the category. A short server-side lease prevents duplicate model calls for overlapping requests. The assistant can still review and record a decision while classification runs, or when Gemini fails. In emulator mode with an empty key, the server can return a keyword category prefixed with `Demo:`.
 
 ## Handoff
 

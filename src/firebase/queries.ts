@@ -1,8 +1,6 @@
-import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, updateDoc, where, type Firestore } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where, type Firestore } from 'firebase/firestore';
 
-import { resolveLeaveClassification } from '@/firebase/ai-classifier';
 import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
-import type { ClassifyLeaveReason, LeaveClassification } from '@/types/sprint2';
 import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { SessionStatus } from '@/types/session';
 import type { AttendanceDocument, LiveSession, SessionDocument, UserDocument } from '@/types/sprint2';
@@ -167,6 +165,8 @@ export function watchClass(
 export interface SubmitLeaveInput {
   sessionId: string;
   classId: string;
+  studentName: string;
+  studentId: string;
   reason: string;
 }
 
@@ -174,12 +174,12 @@ export async function submitLeaveRequest(
   db: Firestore,
   studentUid: string,
   input: SubmitLeaveInput,
-  classifier?: ClassifyLeaveReason,
-): Promise<{ id: string; classification: LeaveClassification }> {
+): Promise<string> {
   const cleanReason = input.reason.trim();
   if (!cleanReason) {
     throw new Error('Alasan izin wajib diisi.');
   }
+  if (cleanReason.length > 4000) throw new Error('Alasan izin maksimal 4.000 karakter.');
 
   const requestId = `${input.sessionId}__${studentUid}`;
   const sessionRef = doc(db, 'sessions', input.sessionId);
@@ -208,6 +208,8 @@ export async function submitLeaveRequest(
       sessionId: input.sessionId,
       classId: sessionData.classId,
       studentUid,
+      studentName: input.studentName,
+      studentId: input.studentId,
       reason: cleanReason,
       submittedAt: serverTimestamp(),
       classification: { status: 'pending' },
@@ -215,13 +217,5 @@ export async function submitLeaveRequest(
     });
   });
 
-  const classification = await resolveLeaveClassification(cleanReason, classifier);
-  try {
-    await updateDoc(leaveRef, { classification });
-  } catch {
-    // Jika pembaruan klasifikasi terkendala jaringan, pengajuan izin tetap tersimpan untuk direview asisten.
-  }
-
-  return { id: requestId, classification };
+  return requestId;
 }
-

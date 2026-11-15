@@ -1,18 +1,8 @@
 import React, { useState } from 'react';
-import {
-  Keyboard,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableWithoutFeedback,
-  View,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Keyboard, StyleSheet, Text, View } from 'react-native';
+
+import { ActionRow, Button, DialogFrame, DialogTitle, Notice, TextField } from '@/components/common/ui';
+import { LabSyncColors, LabSyncSpacing, LabSyncTypography } from '@/constants/labsync-theme';
 import type { AttendancePayload } from '@/types/attendance';
 
 export type AttendanceFormPayload = AttendancePayload;
@@ -28,8 +18,6 @@ export interface AttendanceFormModalProps {
   onClose: () => void;
   onSubmit: (payload: AttendanceFormPayload) => void;
 }
-
-type FocusedField = 'nim' | 'name' | 'notes' | null;
 
 export function AttendanceFormModal(props: AttendanceFormModalProps) {
   if (!props.visible) return null;
@@ -51,7 +39,6 @@ function AttendanceFormContent({
   const [studentName, setStudentName] = useState(initialStudentName);
   const [notes, setNotes] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [focusedField, setFocusedField] = useState<FocusedField>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = () => {
@@ -83,275 +70,81 @@ function AttendanceFormContent({
   const nameHasError = Boolean(errorMessage && !studentName.trim());
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.safeArea}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          style={styles.backdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-          <View style={styles.card}>
-            <Text accessibilityRole="header" style={styles.title}>Formulir Presensi Praktikum</Text>
-            <Text style={styles.subtitle}>
-              {courseName
-                ? `${courseName}${className ? ` • ${className}` : ''}`
-                : 'Lengkapi data kehadiran Anda pada sesi praktikum ini.'}
-            </Text>
+    <DialogFrame visible={visible} onRequestClose={onClose} dismissKeyboard>
+      <View style={styles.intro}>
+        <DialogTitle>Formulir Presensi Praktikum</DialogTitle>
+        <Text style={styles.subtitle}>
+          {courseName
+            ? `${courseName}${className ? ` • ${className}` : ''}`
+            : 'Lengkapi data kehadiran Anda pada sesi praktikum ini.'}
+        </Text>
+      </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>NIM Mahasiswa *</Text>
-              <TextInput
-                accessibilityLabel="NIM Mahasiswa"
-                readOnly={identityLocked}
-                value={studentId}
-                onChangeText={(val) => {
-                  setStudentId(val);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                onFocus={() => setFocusedField('nim')}
-                onBlur={() => setFocusedField(null)}
-                placeholder="Masukkan NIM (contoh: 123210001)"
-                placeholderTextColor="#94A3B8"
-                keyboardType="default"
-                autoCapitalize="characters"
-                style={[
-                  styles.input,
-                  focusedField === 'nim' && styles.inputFocused,
-                  nimHasError && styles.inputError,
-                ]}
-              />
-            </View>
+      <View style={styles.identity}>
+        <TextField
+          label="NIM Mahasiswa *"
+          accessibilityLabel="NIM Mahasiswa"
+          readOnly={identityLocked}
+          value={studentId}
+          onChangeText={(val) => {
+            setStudentId(val);
+            if (errorMessage) setErrorMessage(null);
+          }}
+          placeholder="Masukkan NIM (contoh: 123210001)"
+          keyboardType="default"
+          autoCapitalize="characters"
+          mono
+          invalid={nimHasError}
+          style={styles.identityField}
+        />
+        <TextField
+          label="Nama Lengkap Mahasiswa *"
+          accessibilityLabel="Nama Lengkap Mahasiswa"
+          readOnly={identityLocked}
+          value={studentName}
+          onChangeText={(val) => {
+            setStudentName(val);
+            if (errorMessage) setErrorMessage(null);
+          }}
+          placeholder="Masukkan nama lengkap mahasiswa"
+          invalid={nameHasError}
+          style={styles.identityField}
+        />
+      </View>
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Nama Lengkap Mahasiswa *</Text>
-              <TextInput
-                accessibilityLabel="Nama Lengkap Mahasiswa"
-                readOnly={identityLocked}
-                value={studentName}
-                onChangeText={(val) => {
-                  setStudentName(val);
-                  if (errorMessage) setErrorMessage(null);
-                }}
-                onFocus={() => setFocusedField('name')}
-                onBlur={() => setFocusedField(null)}
-                placeholder="Masukkan nama lengkap mahasiswa"
-                placeholderTextColor="#94A3B8"
-                style={[
-                  styles.input,
-                  focusedField === 'name' && styles.inputFocused,
-                  nameHasError && styles.inputError,
-                ]}
-              />
-            </View>
+      <TextField
+        label="Catatan / Nomor PC (Opsional)"
+        accessibilityLabel="Catatan atau nomor PC"
+        maxLength={50}
+        value={notes}
+        onChangeText={setNotes}
+        placeholder="Contoh: PC-14 atau Meja 03"
+        hint="Isi nomor workstation/PC laboratorium yang Anda gunakan."
+        mono
+      />
 
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Catatan / Nomor PC (Opsional)</Text>
-              <TextInput
-                accessibilityLabel="Catatan atau nomor PC"
-                maxLength={50}
-                value={notes}
-                onChangeText={setNotes}
-                onFocus={() => setFocusedField('notes')}
-                onBlur={() => setFocusedField(null)}
-                placeholder="Contoh: PC-14 atau Meja 03"
-                placeholderTextColor="#94A3B8"
-                style={[
-                  styles.input,
-                  focusedField === 'notes' && styles.inputFocused,
-                ]}
-              />
-              <Text style={styles.hintText}>
-                Isi nomor workstation/PC laboratorium yang Anda gunakan.
-              </Text>
-            </View>
+      {errorMessage ? <Notice tone="danger" message={errorMessage} alert /> : null}
 
-            {errorMessage ? (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{errorMessage}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.actionRow}>
-              <Pressable
-                onPress={onClose}
-                accessibilityRole="button"
-                accessibilityLabel="Batal Presensi"
-                style={({ pressed }) => [
-                  styles.button,
-                  styles.buttonOutline,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={styles.buttonOutlineText}>Batal</Text>
-              </Pressable>
-
-              <Pressable
-                disabled={isSubmitting}
-                onPress={handleSubmit}
-                accessibilityRole="button"
-                accessibilityLabel="Kirim Presensi"
-                accessibilityState={{ disabled: isSubmitting }}
-                style={({ pressed }) => [
-                  styles.button,
-                  isSubmitting ? styles.buttonDisabled : styles.buttonPrimary,
-                  !isSubmitting && pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.buttonPrimaryText,
-                    isSubmitting && styles.buttonDisabledText,
-                  ]}
-                >
-                  Kirim Presensi
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
-      </SafeAreaView>
-    </Modal>
+      <ActionRow>
+        <Button label="Batal" accessibilityLabel="Batal Presensi" onPress={onClose} grow />
+        <Button
+          variant="primary"
+          label={isSubmitting ? 'Mengirim…' : 'Kirim Presensi'}
+          accessibilityLabel="Kirim Presensi"
+          disabled={isSubmitting}
+          onPress={handleSubmit}
+          grow
+        />
+      </ActionRow>
+    </DialogFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)' },
-  scrollArea: { width: '100%', flexGrow: 0, maxHeight: '100%' },
-  scrollContent: { alignItems: 'center' },
-  backdrop: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  card: {
-    width: '88%',
-    maxWidth: 480,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    lineHeight: 28,
-    color: '#0F172A',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    fontWeight: '400',
-    lineHeight: 20,
-    color: '#475569',
-    marginBottom: 16,
-  },
-  fieldGroup: {
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-    color: '#475569',
-    marginBottom: 6,
-  },
-  input: {
-    height: 48,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 6,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#0F172A',
-  },
-  inputFocused: {
-    borderWidth: 1.5,
-    borderColor: '#2563EB',
-  },
-  inputError: {
-    borderWidth: 1.5,
-    borderColor: '#EF4444',
-  },
-  hintText: {
-    fontSize: 11,
-    fontWeight: '400',
-    lineHeight: 14,
-    color: '#94A3B8',
-    marginTop: 4,
-  },
-  errorBanner: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  errorText: {
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 16,
-    color: '#B91C1C',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  button: {
-    flex: 1,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonOutline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-  },
-  buttonPrimary: {
-    backgroundColor: '#2563EB',
-  },
-  buttonDisabled: {
-    backgroundColor: '#E2E8F0',
-    borderColor: '#CBD5E1',
-    borderWidth: 1,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  buttonOutlineText: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-    color: '#0F172A',
-  },
-  buttonPrimaryText: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-    color: '#FFFFFF',
-  },
-  buttonDisabledText: {
-    color: '#94A3B8',
-  },
+  intro: { gap: LabSyncSpacing.sm },
+  subtitle: { ...LabSyncTypography.bodyStrong, color: LabSyncColors.textSecondary },
+  identity: { flexDirection: 'row', flexWrap: 'wrap', gap: LabSyncSpacing.md },
+  identityField: { flexGrow: 1, flexBasis: 180 },
 });
 
 export default AttendanceFormModal;

@@ -31,7 +31,7 @@ beforeEach(async () => {
     const db = context.firestore();
     await Promise.all(Object.entries({
       'users/assistant': { role: 'ASISTEN' },
-      'users/student': { role: 'PRAKTISAN' },
+      'users/student': { role: 'PRAKTISAN', name: 'Praktikan Demo', identifier: 'NIM-DEMO' },
       'users/outsider': { role: 'PRAKTISAN' },
       'users/another-assistant': { role: 'ASISTEN' },
       'classes/mobile': { assistantUid: 'assistant' },
@@ -242,7 +242,7 @@ test('SRS-01: user self-registration creates profile with valid role and matchin
     role: 'PRAKTISAN',
   }));
 
-  await assertSucceeds(setDoc(doc(newAssistant, 'users/new-assistant'), {
+  await assertFails(setDoc(doc(newAssistant, 'users/new-assistant'), {
     name: 'New Assistant',
     identifier: 'AST-NEW',
     role: 'ASISTEN',
@@ -282,7 +282,7 @@ test('SRS-01: user self-registration creates profile with valid role and matchin
 
 test('enrolled student can create attendance only once while the session is open', async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), { classId: 'mobile', status: 'TERJADWAL' });
+    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), { classId: 'mobile', className: 'IF-3A', status: 'TERJADWAL' });
   });
 
   const student = account('student');
@@ -290,7 +290,8 @@ test('enrolled student can create attendance only once while the session is open
   const assistant = account('assistant');
   const sessionRef = doc(assistant, 'sessions/mobile-2');
   const attendanceRef = doc(student, 'attendance/mobile-2__student');
-  const record = { studentUid: 'student', classId: 'mobile', sessionId: 'mobile-2', notes: 'PC-01' };
+  const record = { studentUid: 'student', classId: 'mobile', sessionId: 'mobile-2', studentName: 'Praktikan Demo', studentId: 'NIM-DEMO', className: 'IF-3A', checkedInAt: serverTimestamp(), notes: 'PC-01' };
+  assert.equal((await assertSucceeds(getDoc(attendanceRef))).exists(), false);
 
   await assertFails(setDoc(attendanceRef, record));
   await assertSucceeds(updateDoc(sessionRef, { status: 'DIBUKA' }));
@@ -301,6 +302,7 @@ test('enrolled student can create attendance only once while the session is open
   await assertFails(setDoc(doc(student, 'attendance/mobile-2__other'), record));
   await assertFails(setDoc(attendanceRef, { ...record, classId: 'other' }));
 
+  await assertFails(setDoc(attendanceRef, { ...record, studentName: 'Nama lain' }));
   await assertSucceeds(setDoc(attendanceRef, record));
   await assertFails(setDoc(attendanceRef, { ...record, notes: 'PC-99' }));
   assert.equal((await assertSucceeds(getDoc(attendanceRef))).data()?.notes, 'PC-01');
@@ -308,14 +310,17 @@ test('enrolled student can create attendance only once while the session is open
   await assertSucceeds(updateDoc(sessionRef, { status: 'SELESAI' }));
 });
 
-test('enrolled student can create a pending leave request and update its AI classification', async () => {
+test('enrolled student can create a pending leave request and cannot change the AI classification', async () => {
   const student = account('student');
   const outsider = account('outsider');
-  const leaveRef = doc(student, 'leaveRequests/mobile-2__student');
+  const leaveRef = doc(student, 'leaveRequests/mobile-1__student');
+  await environment.withSecurityRulesDisabled((context) => deleteDoc(doc(context.firestore(), 'leaveRequests/mobile-1__student')));
+  assert.equal((await assertSucceeds(getDoc(leaveRef))).exists(), false);
   const validLeave = {
-    sessionId: 'mobile-2',
+    sessionId: 'mobile-1',
     classId: 'mobile',
     studentUid: 'student',
+    submittedAt: serverTimestamp(),
     reason: 'Sakit demam dan harus istirahat',
     classification: { status: 'pending' },
     decision: 'pending',
@@ -330,8 +335,9 @@ test('enrolled student can create a pending leave request and update its AI clas
   await assertSucceeds(setDoc(leaveRef, validLeave));
   await assertFails(setDoc(leaveRef, { ...validLeave, reason: 'Alasan diubah' }));
   await assertFails(updateDoc(leaveRef, { decision: 'approved' }));
-  await assertSucceeds(updateDoc(leaveRef, { classification: { status: 'classified', category: 'Sakit' } }));
-  await assertSucceeds(updateDoc(leaveRef, { classification: { status: 'unavailable' } }));
+  await assertFails(updateDoc(leaveRef, { classification: { status: 'classified', category: 'Sakit' } }));
+  await assertFails(updateDoc(leaveRef, { classification: { status: 'classified', category: 'Demo: Sakit' } }));
+  await assertFails(updateDoc(leaveRef, { classification: { status: 'unavailable' } }));
   assert.equal((await getDoc(leaveRef)).data()?.reason, 'Sakit demam dan harus istirahat');
 });
 

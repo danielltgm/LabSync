@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { ConfirmationModal } from '@/components/common/ConfirmationModal';
+import { Button } from '@/components/common/ui';
 import {
   LabSyncColors as colors,
   LabSyncRadii as radii,
@@ -22,7 +23,11 @@ export interface SessionControlActionProps {
 export function SessionControlAction(props: SessionControlActionProps) {
   if (props.role !== 'ASISTEN') return null;
   if (props.status === 'SELESAI') {
-    return <Text style={styles.finished}>Sesi telah selesai</Text>;
+    return (
+      <View style={styles.finished}>
+        <Text style={styles.finishedText}>Sesi telah selesai</Text>
+      </View>
+    );
   }
 
   // A new session/status gets a fresh confirmation dialog; stale dialogs cannot reappear.
@@ -41,17 +46,12 @@ function SessionActionButton({
 
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
+      <Button
+        label={label}
+        variant={isOpening ? 'primary' : 'danger'}
         onPress={() => setVisible(true)}
-        style={({ pressed }) => [
-          styles.button,
-          isOpening ? styles.openButton : styles.closeButton,
-          pressed && styles.pressed,
-        ]}
-      >
-        <Text style={styles.buttonLabel}>{label}</Text>
-      </Pressable>
+        grow
+      />
       <ConfirmationModal
         visible={visible}
         title={isOpening ? 'Buka sesi praktikum?' : 'Tutup sesi praktikum?'}
@@ -72,19 +72,18 @@ function SessionActionButton({
 }
 
 const styles = StyleSheet.create({
-  button: {
+  finished: {
+    flexGrow: 1,
+    flexBasis: 140,
     minHeight: 48,
     paddingHorizontal: space.lg,
     paddingVertical: space.md,
     borderRadius: radii.md,
+    backgroundColor: colors.neutral.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  openButton: { backgroundColor: colors.primary },
-  closeButton: { backgroundColor: colors.danger.text },
-  buttonLabel: { ...type.button, color: colors.surface, textAlign: 'center' },
-  finished: { ...type.button, color: colors.textSecondary },
-  pressed: { opacity: 0.8 },
+  finishedText: { ...type.button, color: colors.neutral.text, textAlign: 'center' },
 });
 
 export default SessionControlAction;

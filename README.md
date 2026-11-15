@@ -14,11 +14,11 @@ Pakai Node.js 24 LTS (minimal 24.12, sesuai requirement Firebase SDK), lalu run 
 
 ### Firebase dev bareng tim
 
-1. Ambil file `.env.local` dan akun demo dari PM. Taruh file-nya di folder yang sama dengan `package.json`.
+1. Ambil config Firebase client dan akun demo dari PM. Buat file `.env.local` dari config itu. Taruh file-nya di folder yang sama dengan `package.json`.
 2. Cek project ID-nya `labsync-sprint2-dev` dan `EXPO_PUBLIC_FIREBASE_EMULATORS=false`.
 3. Run `npm run web` buat browser, atau `npm start` lalu scan QR dari Expo Go. Kalau HP beda jaringan sama Metro, pakai `npx expo start --tunnel`.
 
-File `.env.local` berisi config client yang bisa dibagi ke tim. Password akun demo dikirim terpisah lewat channel privat. Simpan credential Admin dan secret API pengajar di luar Git dan `EXPO_PUBLIC_*`. Kalau perlu akses project, minta invite ke PM. [Firebase Console](https://console.firebase.google.com/project/labsync-sprint2-dev/overview)
+Share hanya baris config `EXPO_PUBLIC_FIREBASE_*` ke tim. Kalau `.env.local` lo juga berisi key Gemini, simpan file itu privat. Password akun demo dikirim terpisah lewat channel privat. Simpan credential Admin dan secret API pengajar di luar Git dan `EXPO_PUBLIC_*`. Kalau perlu akses project, minta invite ke PM. [Firebase Console](https://console.firebase.google.com/project/labsync-sprint2-dev/overview)
 
 ### Emulator lokal
 
@@ -33,7 +33,7 @@ Pakai ini kalau mau ngulik rules atau reset data demo sendiri. Firestore Emulato
 | Asisten | `assistant@labsync.example` | `labsync-local` |
 | Praktikan | `student@labsync.example` | `labsync-local` |
 
-**Coba bareng dua akun.** Buka **Pemrograman Mobile** sebagai asisten di satu profil browser, lalu lihat statusnya berubah di profil praktikan tanpa refresh. Tutup sesi dan reload halaman praktikan buat cek statusnya tetap tersimpan. Buat ngulang dari awal, restart emulator tanpa import data, lalu seed ulang. Seed di emulator yang masih jalan mempertahankan status sesi.
+**Coba bareng dua akun.** Buka **Pemrograman Mobile** sebagai asisten, lalu presensi sebagai praktikan di profil browser lain. Cek rekap asisten tanpa refresh. Untuk alur izin, kirim alasan dari akun praktikan, buka review dari rekap asisten, lalu lihat keputusan di **Status Izin Saya**. Buat ngulang dari awal, restart emulator tanpa import data, lalu seed ulang. Seed di emulator yang masih jalan mempertahankan status sesi.
 
 <details>
 <summary>Pakai emulator dari HP</summary>
@@ -44,7 +44,7 @@ Sambungkan HP dan komputer ke Wi-Fi yang sama. Set `host` Auth dan Firestore di 
 
 ## 👥 User stories
 
-Ini target Sprint 2. Sekarang lo sudah bisa login/logout, lihat jadwal sesuai akun, buka/tutup sesi secara live, baca rekap dan riwayat dari Firestore, serta review izin dan lihat status keputusan asisten. Pengiriman presensi dan pengajuan izin tetap menunggu modul SRS-03/04.
+Sprint 2 sudah bisa dipakai buat daftar akun praktikan, kelola kelas dan sesi, presensi, serta kirim dan review izin. Gemini bantu ngasih kategori alasan izin. Keputusan tetap di tangan asisten.
 
 - **Sebagai praktikan**, gue mau lihat jadwal kelas sendiri dan absen sekali saat sesi dibuka, biar kehadiran gue kecatat dan bisa dicek lagi di riwayat.
 - **Sebagai asisten**, gue mau ngatur kelas, peserta, dan jadwal, lalu buka sesi dan lihat siapa yang sudah hadir tanpa refresh.
@@ -72,9 +72,17 @@ Di Sprint 1, **Yudha** pegang beranda, navigasi, dan kontrol sesi. **Agil** pega
 | SRS-06 | Zufar | Review izin dan keputusan asisten |
 | SRS-07 | Bareng tim · Yudha (PM) | Integrasi, testing, dan demo dua akun |
 
-Endpoint, cara autentikasi, dan format respons API pengajar masih ditunggu. Kontrak internal klasifikasi sudah ada buat mulai ngerjain flow izin. [Kontrak API dan skema Firestore](docs/sprint-2-contract.md)
+Pendaftaran mandiri buat praktikan. Untuk akun asisten, PM memverifikasi akun dulu lalu menetapkan `role: ASISTEN` di dokumen `users/{uid}` lewat Firebase Console. Server Expo yang manggil Gemini dan simpan hasil klasifikasi. [Kontrak API dan skema Firestore](docs/sprint-2-contract.md)
 
 Asisten membuka **Review izin sesi ini** dari rekap sesi. Praktikan membuka **Status Izin Saya** dari beranda. Hasil AI adalah saran; keputusan asisten tetap dapat dicatat saat AI belum tersedia. [Handoff SRS-05](docs/srs05-handoff.md) · [Handoff dan pengujian SRS-06](docs/srs06-handoff.md)
+
+## 🤖 Klasifikasi izin
+
+Isi `INSTRUCTOR_AI_API_KEY` di `.env.local` di root repo, lalu restart Expo. Server pakai `gemini-3.1-flash-lite` secara default. Set `INSTRUCTOR_AI_MODEL` kalau mau ganti model.
+
+Kalau jalanin Firebase Emulator, isi juga dua host server dari [`.env.example`](.env.example). Pakai alasan sintetis saat ngetes karena teks alasan dikirim ke Gemini. Kalau key kosong, emulator pakai kategori berlabel `Demo:`.
+
+Untuk Firebase dev, server perlu Firebase Admin Application Default Credentials untuk project yang sama. Aplikasi native yang dirilis juga perlu URL server Expo di konfigurasi Expo Router. [Expo API routes](https://docs.expo.dev/router/web/api-routes/)
 
 ## 🛠️ Checks
 

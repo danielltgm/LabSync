@@ -1,6 +1,14 @@
 import React from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet, Text, View } from 'react-native';
+
+import { Button, DialogFrame, DialogTitle, MetaList, MetaRow, toneSolid } from '@/components/common/ui';
+import {
+  LabSyncColors as colors,
+  LabSyncFonts as fonts,
+  LabSyncRadii as radii,
+  LabSyncSpacing as space,
+  LabSyncTypography as type,
+} from '@/constants/labsync-theme';
 
 export interface AttendanceFeedbackData {
   sessionId: string;
@@ -42,222 +50,88 @@ export function AttendanceFeedbackModal({
   attendance,
   isDuplicate = false,
 }: AttendanceFeedbackModalProps) {
+  const tone = isDuplicate ? 'danger' : 'success';
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView style={styles.backdrop}>
-        <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-        <View style={styles.card}>
-          <View
-            style={[
-              styles.iconCircle,
-              isDuplicate ? styles.iconDuplicate : styles.iconSuccess,
-            ]}
-          >
-            <Text
-              style={[
-                styles.iconText,
-                isDuplicate ? styles.iconTextDuplicate : styles.iconTextSuccess,
-              ]}
-            >
-              {isDuplicate ? '!' : '✓'}
+    <DialogFrame visible={visible} onRequestClose={onClose} tone={tone}>
+      <View style={styles.head}>
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.seal, isDuplicate ? styles.sealDanger : styles.sealSuccess]}
+        >
+          <Text style={[styles.sealGlyph, { color: toneSolid[tone] }]}>{isDuplicate ? '!' : '✓'}</Text>
+        </View>
+        <DialogTitle>{isDuplicate ? 'Presensi Ditolak' : 'Presensi Berhasil Dicatat!'}</DialogTitle>
+        <Text style={styles.subtitle}>
+          {isDuplicate
+            ? `Anda sudah melakukan presensi pada sesi ini sebelumnya${
+                attendance?.checkInTime
+                  ? ` pada pukul ${attendance.checkInTime}.`
+                  : '!'
+              }`
+            : 'Kehadiran Anda telah berhasil tersimpan pada sesi praktikum ini.'}
+        </Text>
+      </View>
+
+      {attendance && (
+        <View style={styles.receipt}>
+          <View style={styles.timeBlock}>
+            <Text style={styles.timeLabel}>Jam Presensi</Text>
+            <Text style={[styles.time, { color: isDuplicate ? colors.text : colors.success.text }]}>
+              {attendance.checkInTime}
             </Text>
           </View>
-
-            <Text accessibilityRole="header" style={styles.title}>
-            {isDuplicate ? 'Presensi Ditolak' : 'Presensi Berhasil Dicatat!'}
-          </Text>
-
-          <Text style={styles.subtitle}>
-            {isDuplicate
-              ? `Anda sudah melakukan presensi pada sesi ini sebelumnya${
-                  attendance?.checkInTime
-                    ? ` pada pukul ${attendance.checkInTime}.`
-                    : '!'
-                }`
-              : 'Kehadiran Anda telah berhasil tersimpan pada sesi praktikum ini.'}
-          </Text>
-
-          {attendance && (
-            <View style={styles.summaryBox}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Mahasiswa</Text>
-                <Text style={styles.summaryValue}>
-                  {attendance.studentName} ({attendance.studentId})
-                </Text>
-              </View>
-
-              {courseName ? (
-                <View style={styles.summaryRow}>
-                  <Text style={styles.summaryLabel}>Sesi Praktikum</Text>
-                  <Text style={styles.summaryValue}>{courseName}</Text>
-                </View>
-              ) : null}
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Jam Presensi</Text>
-                <Text style={[styles.summaryValue, styles.timeBadge]}>
-                  {attendance.checkInTime}
-                </Text>
-              </View>
-
-              <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Catatan / PC</Text>
-                <Text style={styles.summaryValue}>
-                  {attendance.notes?.trim() ? attendance.notes : '-'}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          <Pressable
-            onPress={onClose}
-            accessibilityRole="button"
-            accessibilityLabel={isDuplicate ? 'Tutup Peringatan' : 'Selesai dan Tutup'}
-            style={({ pressed }) => [
-              styles.button,
-              isDuplicate ? styles.buttonDanger : styles.buttonPrimary,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Text style={styles.buttonText}>
-              {isDuplicate ? 'Mengerti & Tutup' : 'Selesai & Tutup'}
-            </Text>
-          </Pressable>
+          <MetaList style={styles.receiptMeta}>
+            <MetaRow label="Mahasiswa" value={`${attendance.studentName} (${attendance.studentId})`} />
+            {courseName ? <MetaRow label="Sesi" value={courseName} /> : null}
+            <MetaRow label="Catatan / PC" value={attendance.notes?.trim() ? attendance.notes : '-'} mono />
+          </MetaList>
         </View>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+      )}
+
+      <Button
+        variant={isDuplicate ? 'danger' : 'primary'}
+        label={isDuplicate ? 'Mengerti & Tutup' : 'Selesai & Tutup'}
+        accessibilityLabel={isDuplicate ? 'Tutup Peringatan' : 'Selesai dan Tutup'}
+        onPress={onClose}
+      />
+    </DialogFrame>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollArea: { width: '100%', flexGrow: 0, maxHeight: '100%' },
-  scrollContent: { alignItems: 'center' },
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-  },
-  card: {
-    width: '88%',
-    maxWidth: 480,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 9999,
+  head: { gap: space.sm },
+  seal: {
+    width: 44,
+    height: 44,
+    borderRadius: radii.full,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: space.xs,
   },
-  iconSuccess: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
-  },
-  iconDuplicate: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-  },
-  iconText: {
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  iconTextSuccess: {
-    color: '#15803D',
-  },
-  iconTextDuplicate: {
-    color: '#B91C1C',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    lineHeight: 28,
-    color: '#0F172A',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    fontWeight: '400',
-    lineHeight: 20,
-    color: '#475569',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  summaryBox: {
-    width: '100%',
-    backgroundColor: '#F1F5F9',
-    borderColor: '#E2E8F0',
+  sealSuccess: { backgroundColor: colors.success.background, borderColor: colors.success.border },
+  sealDanger: { backgroundColor: colors.danger.background, borderColor: colors.danger.border },
+  sealGlyph: { fontSize: 20, lineHeight: 24, fontWeight: '700' },
+  subtitle: { ...type.body, color: colors.textSecondary },
+  receipt: {
     borderWidth: 1,
-    borderRadius: 10,
-    padding: 12,
-    gap: 8,
-    marginBottom: 20,
+    borderStyle: 'dashed',
+    borderColor: colors.borderSoft,
+    borderRadius: radii.md,
+    backgroundColor: colors.background,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
+  timeBlock: {
+    paddingVertical: space.md,
+    paddingHorizontal: space.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.rule,
+    borderStyle: 'dashed',
+    gap: space.xxs,
   },
-  summaryLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 16,
-    color: '#475569',
-  },
-  summaryValue: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-    color: '#0F172A',
-    textAlign: 'right',
-  },
-  timeBadge: {
-    color: '#15803D',
-    fontWeight: '600',
-  },
-  button: {
-    width: '100%',
-    minHeight: 48,
-    padding: 12,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonPrimary: {
-    backgroundColor: '#2563EB',
-  },
-  buttonDanger: {
-    backgroundColor: '#B91C1C',
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-    color: '#FFFFFF',
-  },
+  timeLabel: { ...type.eyebrow, color: colors.textMuted },
+  time: { fontFamily: fonts.mono, fontSize: 28, lineHeight: 34, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  receiptMeta: { paddingVertical: space.md, paddingHorizontal: space.lg },
 });
 
 export default AttendanceFeedbackModal;

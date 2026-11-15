@@ -1,4 +1,4 @@
-import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
 
 import { firebase } from '@/firebase/client';
 import { createUserProfile } from '@/firebase/mutations';
@@ -16,6 +16,8 @@ export interface RegistrationResult {
  * di Firestore (users/{uid}) dengan role yang diprovisioning.
  */
 export async function registerAccount(input: RegistrationInput): Promise<RegistrationResult> {
+  if (input.role !== 'PRAKTISAN') return { success: false, error: 'Akses asisten diberikan oleh PM.' };
+
   const validation = validateRegistrationInput(input);
   if (!validation.isValid) {
     return {
@@ -41,11 +43,16 @@ export async function registerAccount(input: RegistrationInput): Promise<Registr
 
     const uid = credential.user.uid;
 
-    await createUserProfile(firebase.db, uid, {
-      name: input.name.trim(),
-      identifier: input.identifier.trim(),
-      role: input.role,
-    });
+    try {
+      await createUserProfile(firebase.db, uid, {
+        name: input.name.trim(),
+        identifier: input.identifier.trim(),
+        role: 'PRAKTISAN',
+      });
+    } catch (error) {
+      await deleteUser(credential.user).catch(() => undefined);
+      throw error;
+    }
 
     return {
       success: true,

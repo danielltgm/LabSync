@@ -1,20 +1,6 @@
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Button,
-  Modal,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
 
-import {
-  LabSyncColors as colors,
-  LabSyncRadii as radii,
-  LabSyncSpacing as space,
-  LabSyncTypography as type,
-} from '@/constants/labsync-theme';
+import { ActionRow, Button, DialogFrame, DialogTitle, Notice, TextField } from '@/components/common/ui';
 
 interface ClassFormProps {
   visible: boolean;
@@ -56,84 +42,36 @@ export function ClassForm({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>
-            {isEditing ? 'Ubah Nama Kelas' : 'Tambah Kelas Baru'}
-          </Text>
+    <DialogFrame visible={visible} onRequestClose={onClose} dismissKeyboard>
+      <DialogTitle>{isEditing ? 'Ubah Nama Kelas' : 'Tambah Kelas Baru'}</DialogTitle>
 
-          <TextInput
-            accessibilityLabel="Nama kelas"
-            placeholder="Contoh: IF-3A Praktikum Mobile"
-            style={styles.input}
-            value={name}
-            onChangeText={(text) => {
-              setName(text);
-              if (error) setError('');
-            }}
-            editable={!busy}
-          />
+      <TextField
+        label="Nama kelas"
+        placeholder="Contoh: IF-3A Praktikum Mobile"
+        value={name}
+        onChangeText={(text) => {
+          setName(text);
+          if (error) setError('');
+        }}
+        editable={!busy}
+        invalid={!!error}
+        autoFocus
+        returnKeyType="done"
+        onSubmitEditing={() => { if (!busy && name.trim()) void handleSubmit(); }}
+      />
 
-          {!!error && <Text style={styles.errorText}>{error}</Text>}
+      {!!error && <Notice tone="danger" message={error} alert />}
 
-          {busy && <ActivityIndicator color={colors.primary} style={styles.loader} />}
-
-          <View style={styles.actions}>
-            <Button title="Batal" onPress={onClose} disabled={busy} color={colors.textSecondary} />
-            <Button
-              title={busy ? 'Menyimpan…' : isEditing ? 'Simpan' : 'Buat Kelas'}
-              onPress={() => { void handleSubmit(); }}
-              disabled={busy || !name.trim()}
-            />
-          </View>
-        </View>
-      </View>
-    </Modal>
+      <ActionRow>
+        <Button label="Batal" onPress={onClose} disabled={busy} grow />
+        <Button
+          variant="primary"
+          label={busy ? 'Menyimpan…' : isEditing ? 'Simpan' : 'Buat Kelas'}
+          onPress={() => { void handleSubmit(); }}
+          disabled={busy || !name.trim()}
+          grow
+        />
+      </ActionRow>
+    </DialogFrame>
   );
 }
-
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: colors.backdrop,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: space.lg,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 400,
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: space.xl,
-    gap: space.md,
-  },
-  title: {
-    ...type.heading,
-    color: colors.text,
-  },
-  input: {
-    ...type.body,
-    color: colors.text,
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-    borderRadius: radii.sm,
-    minHeight: 48,
-    padding: space.md,
-    backgroundColor: colors.background,
-  },
-  loader: {
-    marginVertical: space.xs,
-  },
-  errorText: {
-    ...type.caption,
-    color: colors.danger.text,
-  },
-  actions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: space.md,
-    marginTop: space.sm,
-  },
-});

@@ -1,16 +1,39 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { StatusBadge } from '@/components/common/StatusBadge';
-import type { LeaveRequestRecord } from '@/firebase/queries';
+import { SessionSheet } from '@/components/common/SessionSheet';
+import { Button, type ButtonVariant, type Tone, toneText } from '@/components/common/ui';
+import {
+  LabSyncColors as colors,
+  LabSyncRadii as radii,
+  LabSyncSpacing as space,
+  LabSyncTypography as type,
+} from '@/constants/labsync-theme';
+import type { LiveLeaveRequest } from '@/types/leave-request';
 import type { Session } from '@/types/session';
 
 export interface SessionPraktikanCardProps {
   session: Session;
   isAttended: boolean;
   onPressAttendance?: (session: Session) => void;
-  leaveRequest?: LeaveRequestRecord;
+  leaveRequest?: LiveLeaveRequest;
   onPressLeave?: (session: Session) => void;
+}
+
+const decisionBadge: Record<LiveLeaveRequest['decision'], { label: string; tone: Tone }> = {
+  approved: { label: 'Status Izin: Disetujui Asisten', tone: 'success' },
+  rejected: { label: 'Status Izin: Ditolak Asisten', tone: 'danger' },
+  pending: { label: 'Status Izin: Menunggu Review Asisten', tone: 'warning' },
+};
+
+function classificationLabel(classification: LiveLeaveRequest['classification']) {
+  if (classification.status === 'classified') {
+    return `Kategori AI: ${classification.category}`;
+  }
+  if (classification.status === 'unavailable') {
+    return 'Kategori AI: Tidak tersedia (review manual)';
+  }
+  return 'Kategori AI: Sedang diklasifikasi...';
 }
 
 export function SessionPraktikanCard({
@@ -23,272 +46,67 @@ export function SessionPraktikanCard({
   const canAttend = session.status === 'DIBUKA' && !isAttended && !leaveRequest && !!onPressAttendance;
   const canRequestLeave = !isAttended && !leaveRequest && session.status !== 'SELESAI' && !!onPressLeave;
 
-  const getDecisionBadge = (decision: LeaveRequestRecord['decision']) => {
-    if (decision === 'approved') {
-      return {
-        label: 'Status Izin: Disetujui Asisten',
-        containerStyle: styles.leaveApproved,
-        textStyle: styles.leaveTextApproved,
-      };
-    }
-    if (decision === 'rejected') {
-      return {
-        label: 'Status Izin: Ditolak Asisten',
-        containerStyle: styles.leaveRejected,
-        textStyle: styles.leaveTextRejected,
-      };
-    }
-    return {
-      label: 'Status Izin: Menunggu Review Asisten',
-      containerStyle: styles.leavePending,
-      textStyle: styles.leaveTextPending,
-    };
-  };
-
-  const getClassificationLabel = (classification: LeaveRequestRecord['classification']) => {
-    if (classification.status === 'classified') {
-      return `Kategori AI: ${classification.category}`;
-    }
-    if (classification.status === 'unavailable') {
-      return 'Kategori AI: Tidak tersedia (review manual)';
-    }
-    return 'Kategori AI: Sedang diklasifikasi...';
-  };
-
-  const getButtonConfig = () => {
-    if (isAttended) {
-      return {
-        label: 'Sudah Presensi',
-        buttonStyle: styles.buttonAttended,
-        textStyle: styles.buttonTextAttended,
-      };
-    }
+  const getButtonConfig = (): { label: string; variant: ButtonVariant } => {
+    if (isAttended) return { label: 'Sudah Presensi', variant: 'success' };
     if (session.status === 'DIBUKA') {
-      return {
-        label: canAttend ? 'Lakukan Presensi' : 'Presensi belum tersedia',
-        buttonStyle: canAttend ? styles.buttonActive : styles.buttonDisabled,
-        textStyle: canAttend ? styles.buttonTextActive : styles.buttonTextDisabled,
-      };
+      return canAttend
+        ? { label: 'Lakukan Presensi', variant: 'primary' }
+        : { label: 'Presensi belum tersedia', variant: 'muted' };
     }
-    if (session.status === 'TERJADWAL') {
-      return {
-        label: 'Sesi Belum Dibuka',
-        buttonStyle: styles.buttonDisabled,
-        textStyle: styles.buttonTextDisabled,
-      };
-    }
-    return {
-      label: 'Sesi Selesai',
-      buttonStyle: styles.buttonDisabled,
-      textStyle: styles.buttonTextDisabled,
-    };
+    if (session.status === 'TERJADWAL') return { label: 'Sesi Belum Dibuka', variant: 'muted' };
+    return { label: 'Sesi Selesai', variant: 'muted' };
   };
 
   const buttonConfig = getButtonConfig();
+  const badge = leaveRequest ? decisionBadge[leaveRequest.decision] : null;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.headerRow}>
-        <Text accessibilityRole="header" style={styles.courseName}>{session.courseName}</Text>
-        <StatusBadge status={session.status} />
-      </View>
-
-      <View style={styles.metaContainer}>
-        <Text style={styles.metaText}>🏛️ {session.labRoom}</Text>
-        <Text style={styles.metaText}>
-          👥 {session.className}  •  ⏰ {session.startTime} - {session.endTime} WIB ({session.date})
-        </Text>
-        <Text style={styles.metaText}>👤 Asisten: {session.assistantName}</Text>
-      </View>
-
-      {leaveRequest ? (
-        <View style={[styles.leaveBanner, getDecisionBadge(leaveRequest.decision).containerStyle]}>
-          <Text style={[styles.leaveDecisionText, getDecisionBadge(leaveRequest.decision).textStyle]}>
-            {getDecisionBadge(leaveRequest.decision).label}
-          </Text>
-          <Text style={styles.leaveMetaText}>
-            {getClassificationLabel(leaveRequest.classification)}
-          </Text>
-          <Text style={styles.leaveReasonText}>
-            Alasan: {leaveRequest.reason}
-          </Text>
+    <SessionSheet session={session}>
+      {leaveRequest && badge ? (
+        <View style={[styles.leave, leaveSurface[badge.tone]]}>
+          <Text style={[styles.leaveDecision, { color: toneText[badge.tone] }]}>{badge.label}</Text>
+          <Text style={styles.leaveMeta}>{classificationLabel(leaveRequest.classification)}</Text>
+          <Text numberOfLines={3} style={styles.leaveReason}>Alasan: {leaveRequest.reason}</Text>
         </View>
       ) : null}
 
-      <Pressable
-        disabled={!canAttend}
-        onPress={() => onPressAttendance?.(session)}
-        accessibilityRole="button"
-        accessibilityLabel={buttonConfig.label}
-        accessibilityState={{ disabled: !canAttend }}
-        style={({ pressed }) => [
-          styles.buttonBase,
-          buttonConfig.buttonStyle,
-          canAttend && pressed && styles.buttonPressed,
-        ]}
-      >
-        <Text style={[styles.buttonTextBase, buttonConfig.textStyle]}>
-          {buttonConfig.label}
-        </Text>
-      </Pressable>
-
-      {canRequestLeave ? (
-        <Pressable
-          onPress={() => onPressLeave?.(session)}
-          accessibilityRole="button"
-          accessibilityLabel="Ajukan Izin"
-          style={({ pressed }) => [
-            styles.buttonBase,
-            styles.buttonLeaveOutline,
-            pressed && styles.buttonLeavePressed,
-          ]}
-        >
-          <Text style={[styles.buttonTextBase, styles.buttonTextLeaveOutline]}>
-            Ajukan Izin
-          </Text>
-        </Pressable>
-      ) : null}
-    </View>
+      <View style={styles.actions}>
+        <Button
+          label={buttonConfig.label}
+          accessibilityLabel={buttonConfig.label}
+          variant={buttonConfig.variant}
+          glyph={isAttended ? '✓' : undefined}
+          disabled={!canAttend}
+          onPress={() => onPressAttendance?.(session)}
+        />
+        {canRequestLeave ? (
+          <Button label="Ajukan Izin" accessibilityLabel="Ajukan Izin" onPress={() => onPressLeave?.(session)} />
+        ) : null}
+      </View>
+    </SessionSheet>
   );
 }
 
+const leaveSurface = StyleSheet.create({
+  info: { backgroundColor: colors.primarySurface, borderLeftColor: colors.primary },
+  success: { backgroundColor: colors.success.background, borderLeftColor: colors.success.solid },
+  danger: { backgroundColor: colors.danger.background, borderLeftColor: colors.danger.solid },
+  warning: { backgroundColor: colors.warning.background, borderLeftColor: colors.warning.solid },
+  neutral: { backgroundColor: colors.neutral.background, borderLeftColor: colors.neutral.solid },
+});
+
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E2E8F0',
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: '#0F172A',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
+  leave: {
+    borderLeftWidth: 3,
+    borderRadius: radii.sm,
+    paddingVertical: space.md,
+    paddingHorizontal: space.md + 2,
+    gap: space.xs,
   },
-  headerRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  courseName: {
-    flexGrow: 1,
-    flexBasis: 180,
-    fontSize: 20,
-    fontWeight: '600',
-    lineHeight: 28,
-    color: '#0F172A',
-  },
-  metaContainer: {
-    marginVertical: 12,
-    gap: 8,
-  },
-  metaText: {
-    fontSize: 14,
-    fontWeight: '400',
-    lineHeight: 20,
-    color: '#475569',
-  },
-  buttonBase: {
-    minHeight: 48,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  buttonActive: {
-    backgroundColor: '#2563EB',
-    borderColor: '#2563EB',
-  },
-  buttonPressed: {
-    backgroundColor: '#1D4ED8',
-    opacity: 0.85,
-  },
-  buttonAttended: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
-  },
-  buttonDisabled: {
-    backgroundColor: '#E2E8F0',
-    borderColor: '#CBD5E1',
-  },
-  buttonTextBase: {
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  buttonTextActive: {
-    color: '#FFFFFF',
-  },
-  buttonTextAttended: {
-    color: '#15803D',
-    fontWeight: '600',
-  },
-  buttonTextDisabled: {
-    color: '#94A3B8',
-  },
-  buttonLeaveOutline: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#CBD5E1',
-    marginTop: 8,
-  },
-  buttonLeavePressed: {
-    backgroundColor: '#F8FAFC',
-    opacity: 0.85,
-  },
-  buttonTextLeaveOutline: {
-    color: '#334155',
-    fontWeight: '600',
-  },
-  leaveBanner: {
-    borderRadius: 10,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 8,
-    gap: 4,
-  },
-  leavePending: {
-    backgroundColor: '#FEF3C7',
-    borderColor: '#FCD34D',
-  },
-  leaveApproved: {
-    backgroundColor: '#DCFCE7',
-    borderColor: '#86EFAC',
-  },
-  leaveRejected: {
-    backgroundColor: '#FEE2E2',
-    borderColor: '#FCA5A5',
-  },
-  leaveDecisionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  leaveTextPending: {
-    color: '#B45309',
-  },
-  leaveTextApproved: {
-    color: '#15803D',
-  },
-  leaveTextRejected: {
-    color: '#B91C1C',
-  },
-  leaveMetaText: {
-    fontSize: 12,
-    fontWeight: '500',
-    lineHeight: 16,
-    color: '#334155',
-  },
-  leaveReasonText: {
-    fontSize: 12,
-    fontWeight: '400',
-    lineHeight: 16,
-    color: '#475569',
-  },
+  leaveDecision: { ...type.label, fontSize: 14, lineHeight: 20, fontWeight: '700' },
+  leaveMeta: { ...type.caption, color: colors.text },
+  leaveReason: { ...type.caption, fontWeight: '400', color: colors.textSecondary },
+  actions: { gap: space.sm },
 });
 
 export default SessionPraktikanCard;

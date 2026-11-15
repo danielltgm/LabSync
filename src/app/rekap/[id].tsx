@@ -1,9 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 import { SessionControlAction } from '@/components/asisten/SessionControlAction';
+import { ActionRow, Button } from '@/components/common/ui';
 import { SessionRecap } from '@/components/rekap/SessionRecap';
-import { LabSyncColors as colors, LabSyncSpacing as space, LabSyncTypography as type } from '@/constants/labsync-theme';
+import { LabSyncSpacing as space } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
 import { useAttendance } from '@/hooks/use-attendance';
 
@@ -25,19 +26,17 @@ export default function SessionRecapScreen() {
       onRetry={() => { attendance.retry(); retrySessions(); }}
       onBack={() => router.canGoBack() ? router.back() : router.replace('/')}
       sessionControls={session && (
-        <View>
+        <ActionRow style={styles.controls}>
           <SessionControlAction sessionId={session.id} status={session.status} role={activeUser.role}
             onOpenSession={openSession} onCloseSession={closeSession} />
-          <Pressable accessibilityRole="button" style={styles.link} onPress={() => router.push({ pathname: '/izin/[id]', params: { id: session.id } })}>
-            <Text style={styles.label}>Review izin sesi ini</Text>
-          </Pressable>
-        </View>
+          <Button label="Review izin sesi ini" grow
+            onPress={() => router.push({ pathname: '/izin/[id]', params: { id: session.id } })} />
+        </ActionRow>
       )}
     />
   );
 }
 
 const styles = StyleSheet.create({
-  link: { minHeight: 48, paddingVertical: space.md, justifyContent: 'center' },
-  label: { ...type.button, color: colors.primary },
+  controls: { marginTop: space.xs },
 });

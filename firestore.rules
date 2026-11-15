@@ -1,16 +1,6 @@
 rules_version = '2';
 
-// Model: docs/sprint-2-contract.md. Identity and memberships are trusted writes.
-// users/{uid}: name, identifier, role. classes/{id}: name, assistantUid.
-// enrollments/{uid}/classes/{id}: enrolledAt timestamp.
-// sessions/{id}: classId, courseName, className, labRoom, date, startTime,
-// endTime, assistantName, status; clients may only advance status.
-// attendance/{sessionId}__{uid}: session/class/student IDs, identity snapshots,
-// checkedInAt timestamp, optional notes; read-only in this feature.
-// leaveRequests/{sessionId}__{uid}: immutable classId/sessionId/studentUid,
-// reason (1..4000), submittedAt timestamp, classification map; optional immutable
-// studentName (1..200) and studentId (1..40). Only pending -> approved/rejected
-// may be written by the assigned assistant, with reviewedBy and reviewedAt.
+// Data model and access scopes are documented in docs/sprint-2-contract.md.
 service cloud.firestore {
   match /databases/{database}/documents {
     // The document fields and supported query shapes are in docs/sprint-2-contract.md.
@@ -31,6 +21,7 @@ service cloud.firestore {
 
     function enrolledIn(classId) {
       return hasRole('PRAKTISAN') &&
+        exists(/databases/$(database)/documents/classes/$(classId)) &&
         exists(/databases/$(database)/documents/enrollments/$(request.auth.uid)/classes/$(classId));
     }
 
@@ -62,10 +53,11 @@ service cloud.firestore {
     function isValidLeaveRequest(data) {
       return data.keys().hasAll(['sessionId', 'classId', 'studentUid', 'reason', 'submittedAt', 'classification', 'decision']) &&
         data.keys().hasOnly(['sessionId', 'classId', 'studentUid', 'reason', 'submittedAt', 'classification', 'decision',
-          'studentName', 'studentId', 'reviewedBy', 'reviewedAt']) &&
+          'studentName', 'studentId', 'reviewedBy', 'reviewedAt', 'classificationStartedAt']) &&
         validId(data.sessionId) && validId(data.classId) && validId(data.studentUid) &&
         validText(data.reason, 4000) && data.submittedAt is timestamp && data.submittedAt <= request.time &&
         isValidClassification(data.classification) &&
+        (!('classificationStartedAt' in data) || data.classificationStartedAt is timestamp) &&
         (!('studentName' in data) || validText(data.studentName, 200)) &&
         (!('studentId' in data) || validText(data.studentId, 40)) &&
         ((data.decision == 'pending' && !('reviewedBy' in data) && !('reviewedAt' in data)) ||
@@ -83,9 +75,12 @@ service cloud.firestore {
     }
 
     function canCreateAttendance(attendanceId, data) {
-      return isOwner(data.studentUid) &&
-        enrolledIn(data.classId) &&
-        data.sessionId is string &&
+      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return data.keys().hasOnly(['sessionId', 'classId', 'studentUid', 'studentId', 'studentName', 'className', 'checkedInAt', 'notes']) &&
+        isOwner(data.studentUid) && enrolledIn(data.classId) && validId(data.sessionId) &&
+        data.studentId == profile.identifier && data.studentName == profile.name &&
+        data.className == get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.className &&
+        data.checkedInAt == request.time && (!('notes' in data) || validText(data.notes, 250)) &&
         attendanceId == data.sessionId + '__' + request.auth.uid &&
         get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId &&
         get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.status == 'DIBUKA';
@@ -95,30 +90,21 @@ service cloud.firestore {
       return isValidLeaveRequest(data) && isOwner(data.studentUid) &&
         enrolledIn(data.classId) &&
         requestId == data.sessionId + '__' + request.auth.uid &&
-        data.reason is string &&
-        data.reason.size() > 0 &&
-        data.decision == 'pending' &&
-        data.classification.status in ['pending', 'classified', 'unavailable'] &&
+        data.decision == 'pending' && data.submittedAt == request.time &&
+        data.classification.status == 'pending' && !('classificationStartedAt' in data) &&
+        (!('studentName' in data) || data.studentName == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.name) &&
+        (!('studentId' in data) || data.studentId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.identifier) &&
         exists(/databases/$(database)/documents/sessions/$(data.sessionId)) &&
         get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId;
-    }
-
-    function canUpdateLeaveClassification() {
-      return isOwner(resource.data.studentUid) &&
-        resource.data.decision == 'pending' &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classification']) &&
-        request.resource.data.classification.status in ['classified', 'unavailable'];
     }
 
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow create: if isOwner(uid) &&
         request.resource.data.keys().hasOnly(['name', 'identifier', 'role']) &&
-        request.resource.data.name is string &&
-        request.resource.data.name.size() > 0 &&
-        request.resource.data.identifier is string &&
-        request.resource.data.identifier.size() > 0 &&
-        request.resource.data.role in ['ASISTEN', 'PRAKTISAN'];
+        validText(request.resource.data.name, 200) &&
+        validText(request.resource.data.identifier, 40) &&
+        request.resource.data.role == 'PRAKTISAN';
     }
 
     match /classes/{classId} {
@@ -140,23 +126,25 @@ service cloud.firestore {
     match /enrollments/{uid}/classes/{classId} {
       allow read: if hasRole('PRAKTISAN') && isOwner(uid);
       allow create: if managesClass(classId) &&
+        get(/databases/$(database)/documents/users/$(uid)).data.role == 'PRAKTISAN' &&
         request.resource.data.keys().hasOnly(['enrolledAt']) &&
         request.resource.data.enrolledAt is timestamp;
       allow delete: if managesClass(classId);
     }
 
+    function isValidScheduledSession(data) {
+      return data.keys().hasOnly(['classId', 'courseName', 'className', 'labRoom', 'date', 'startTime', 'endTime', 'assistantName', 'status']) &&
+        data.status == 'TERJADWAL' && validId(data.classId) &&
+        validText(data.courseName, 160) && validText(data.className, 120) &&
+        validText(data.labRoom, 120) && validText(data.assistantName, 200) &&
+        data.date is string && data.date.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$') &&
+        data.startTime is string && data.startTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+        data.endTime is string && data.endTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+    }
+
     match /sessions/{sessionId} {
       allow read: if enrolledIn(resource.data.classId) || managesClass(resource.data.classId);
-      allow create: if managesClass(request.resource.data.classId) &&
-        request.resource.data.status == 'TERJADWAL' &&
-        request.resource.data.keys().hasOnly(['classId', 'courseName', 'className', 'labRoom', 'date', 'startTime', 'endTime', 'assistantName', 'status']) &&
-        request.resource.data.courseName is string &&
-        request.resource.data.className is string &&
-        request.resource.data.labRoom is string &&
-        request.resource.data.date is string &&
-        request.resource.data.startTime is string &&
-        request.resource.data.endTime is string &&
-        request.resource.data.assistantName is string;
+      allow create: if isValidScheduledSession(request.resource.data) && managesClass(request.resource.data.classId);
       allow update: if managesClass(resource.data.classId) &&
         (isValidSessionUpdate() ||
          (resource.data.status == 'TERJADWAL' &&
@@ -165,15 +153,22 @@ service cloud.firestore {
       allow delete: if managesClass(resource.data.classId) && resource.data.status == 'TERJADWAL';
     }
 
+    // Scope missing-document reads for check-in and leave transactions.
+    function canReadMissingOwnRecord(id) {
+      return hasRole('PRAKTISAN') && request.auth.uid.matches('^[A-Za-z0-9_-]+$') &&
+        id.matches('^.+__' + request.auth.uid + '$');
+    }
+
     match /attendance/{attendanceId} {
+      allow get: if resource == null && canReadMissingOwnRecord(attendanceId);
       allow read: if canReadStudentRecord(resource.data);
       allow create: if canCreateAttendance(attendanceId, request.resource.data);
     }
 
     match /leaveRequests/{requestId} {
+      allow get: if resource == null && canReadMissingOwnRecord(requestId);
       allow read: if canReadStudentRecord(resource.data);
       allow create: if canCreateLeaveRequest(requestId, request.resource.data);
-      allow update: if canUpdateLeaveClassification();
       allow update: if managesClass(resource.data.classId) && isValidLeaveReview(requestId);
     }
   }

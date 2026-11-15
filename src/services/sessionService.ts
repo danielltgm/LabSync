@@ -24,7 +24,7 @@ export interface SessionServiceResult {
 }
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const TIME_REGEX = /^\d{2}:\d{2}$/;
+const TIME_REGEX = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export function validateSessionInput(input: SessionInput): string | null {
   if (!input.classId?.trim()) return 'Pilihan kelas wajib ditentukan.';
@@ -40,6 +40,10 @@ export function validateSessionInput(input: SessionInput): string | null {
   if (!input.endTime?.trim() || !TIME_REGEX.test(input.endTime.trim())) {
     return 'Format jam selesai harus HH:mm (contoh: 10:00).';
   }
+  const date = input.date.trim();
+  const day = new Date(date + 'T00:00:00Z');
+  if (Number.isNaN(day.getTime()) || day.toISOString().slice(0, 10) !== date) return 'Tanggal tidak valid.';
+  if (input.startTime.trim() >= input.endTime.trim()) return 'Jam selesai harus setelah jam mulai.';
   if (!input.assistantName?.trim()) return 'Nama asisten pengampu wajib diisi.';
 
   return null;

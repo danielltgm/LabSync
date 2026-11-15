@@ -28,7 +28,7 @@ async function screenshot(page, name) {
 
 async function withDeniedRead(collection, check) {
   const rules = readFileSync('firestore.rules', 'utf8');
-  const pattern = new RegExp(`(match /${collection}/\\{[^}]+\\} \\{\\s*)allow read: if canReadStudentRecord\\(resource.data\\);`);
+  const pattern = new RegExp(`(match /${collection}/\\{[^}]+\\} \\{[\\s\\S]*?)(?:allow get: if resource == null && canReadMissingOwnRecord\\([^)]*\\);\\s*)?allow read: if canReadStudentRecord\\(resource.data\\);`);
   const denied = collection === 'reviewWrite'
     ? rules.replace('allow update: if managesClass(resource.data.classId) && isValidLeaveReview(requestId);', 'allow update: if false;')
     : rules.replace(pattern, '$1allow read: if false;');

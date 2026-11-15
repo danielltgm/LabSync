@@ -1,41 +1,58 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Button,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 import { EmptyState } from '@/components/common/EmptyState';
+import { ActionRow, Button, LoadingLine, Notice, PageHeader } from '@/components/common/ui';
 import { ClassForm } from '@/components/manage/ClassForm';
 import {
   LabSyncColors as colors,
-  LabSyncRadii as radii,
+  LabSyncLayout as layout,
   LabSyncSpacing as space,
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
 import { useClasses } from '@/hooks/useClasses';
+import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 
 export default function ManageClassesScreen() {
   const { activeUser } = useLabSync();
   const { classes, loading, error, createClass, updateClass, deleteClass } = useClasses(activeUser?.id);
+  const { compact, wide } = useResponsiveLayout();
 
   const [formVisible, setFormVisible] = useState(false);
   const [editingClass, setEditingClass] = useState<{ id: string; name: string } | null>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string }>();
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const displayError = deleteError || error;
+
+  async function confirmDelete() {
+    if (!deleteTarget || deleteBusy) return;
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      const result = await deleteClass(deleteTarget.id);
+      if (!result.success) setDeleteError(result.error ?? 'Kelas gagal dihapus.');
+    } finally {
+      setDeleteBusy(false);
+      setDeleteTarget(undefined);
+    }
+  }
 
   if (activeUser?.role !== 'ASISTEN') {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.restricted}>
-          <Text style={styles.title}>Akses Ditolak</Text>
-          <Text style={styles.subtitle}>Halaman manajemen hanya dapat diakses oleh Asisten Laboratorium.</Text>
-          <Button title="Kembali ke Beranda" onPress={() => router.replace('/')} />
+          <EmptyState
+            title="Akses Ditolak"
+            description="Halaman manajemen hanya dapat diakses oleh Asisten Laboratorium."
+          >
+            <Button variant="primary" label="Kembali ke Beranda" onPress={() => router.replace('/')} style={styles.restrictedAction} />
+          </EmptyState>
         </View>
       </SafeAreaView>
     );
@@ -43,32 +60,34 @@ export default function ManageClassesScreen() {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <View style={styles.header}>
-        <View>
-          <Text accessibilityRole="header" style={styles.title}>Manajemen Kelas</Text>
-          <Text style={styles.subtitle}>Kelola daftar kelas dan sesi praktikum yang Anda ampu.</Text>
-        </View>
-        <Button title="Kembali" onPress={() => router.replace('/')} color={colors.textSecondary} />
-      </View>
-
-      <View style={styles.actionRow}>
-        <Button
-          title="+ Tambah Kelas Baru"
-          onPress={() => {
-            setEditingClass(null);
-            setFormVisible(true);
-          }}
-        />
-      </View>
-
-      {loading && <ActivityIndicator color={colors.primary} style={styles.loader} />}
-
-      {!!error && <Text style={styles.errorText}>{error}</Text>}
-
       <FlatList
         data={classes}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, compact && styles.listCompact, wide && styles.listWide]}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
+            <PageHeader
+              title="Manajemen Kelas"
+              onBack={() => router.replace('/')}
+            />
+
+            <ActionRow>
+              <Button
+                variant="primary"
+                label="+ Tambah Kelas Baru"
+                compact
+                onPress={() => {
+                  setEditingClass(null);
+                  setFormVisible(true);
+                }}
+                style={styles.addButton}
+              />
+            </ActionRow>
+
+            {loading && <LoadingLine label="Memuat data..." />}
+            {displayError && <Notice tone="danger" message={displayError} alert />}
+          </View>
+        }
         ListEmptyComponent={
           !loading ? (
             <EmptyState
@@ -77,46 +96,37 @@ export default function ManageClassesScreen() {
             />
           ) : undefined
         }
+        ItemSeparatorComponent={Separator}
         renderItem={({ item }) => (
-          <View style={styles.classCard}>
-            <View style={styles.classInfo}>
+          <View style={styles.classRow}>
+            <Pressable accessibilityRole="button"
+              accessibilityLabel={`Kelola kelas ${item.name}`}
+              onPress={() => router.push(`/manage/class/${item.id}`)}
+              style={({ pressed }) => [styles.openClass, pressed && styles.openPressed]}>
               <Text style={styles.className}>{item.name}</Text>
-              <Text style={styles.classMeta}>ID: {item.id}</Text>
-            </View>
-
-            <View style={styles.buttonGroup}>
-              <Pressable
-                style={styles.detailButton}
-                onPress={() => router.push(`/manage/class/${item.id}`)}
-              >
-                <Text style={styles.detailButtonText}>Kelola Sesi & Praktikan</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.editButton}
-                onPress={() => {
-                  setEditingClass(item);
-                  setFormVisible(true);
-                }}
-              >
-                <Text style={styles.editButtonText}>Ubah</Text>
-              </Pressable>
-
-              <Pressable
-                style={styles.deleteButton}
-                onPress={() => {
-                  void deleteClass(item.id);
-                }}
-              >
-                <Text style={styles.deleteButtonText}>Hapus</Text>
-              </Pressable>
-            </View>
+              <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.chevron}>›</Text>
+            </Pressable>
+            <ActionRow style={styles.rowActions}>
+              <Button compact variant="quiet" label="Ubah"
+                accessibilityLabel={`Ubah kelas ${item.name}`}
+                onPress={() => { setEditingClass(item); setFormVisible(true); }} />
+              <Button compact variant="dangerOutline" label="Hapus"
+                accessibilityLabel={`Hapus kelas ${item.name}`}
+                onPress={() => { setDeleteError(''); setDeleteTarget(item); }} />
+            </ActionRow>
           </View>
         )}
       />
 
-      <ClassForm
-        visible={formVisible}
+      <ConfirmationModal visible={!!deleteTarget} title="Hapus kelas?"
+        message={deleteTarget ? `Kelas ${deleteTarget.name} akan dihapus.` : ''}
+        confirmLabel={deleteBusy ? 'Menghapus…' : 'Ya, hapus'} variant="danger"
+        confirmDisabled={deleteBusy} cancelDisabled={deleteBusy}
+        onCancel={() => { if (!deleteBusy) setDeleteTarget(undefined); }} onConfirm={() => { void confirmDelete(); }} />
+
+      {formVisible && <ClassForm
+        key={editingClass?.id ?? 'new-class'}
+        visible
         isEditing={!!editingClass}
         initialName={editingClass?.name ?? ''}
         onClose={() => {
@@ -129,64 +139,32 @@ export default function ManageClassesScreen() {
           }
           return createClass(name);
         }}
-      />
+      />}
     </SafeAreaView>
   );
 }
 
+function Separator() {
+  return <View style={styles.separator} />;
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  restricted: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: space.xl, gap: space.md },
-  header: {
-    padding: space.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderDark,
-    backgroundColor: colors.surface,
-  },
-  title: { ...type.title, color: colors.primary },
-  subtitle: { ...type.body, color: colors.textSecondary, marginTop: space.xs },
-  actionRow: { padding: space.lg, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.borderDark },
-  loader: { marginVertical: space.xl },
-  errorText: { ...type.caption, color: colors.danger.text, margin: space.lg },
-  list: { padding: space.lg, gap: space.md },
-  classCard: {
-    backgroundColor: colors.surface,
-    borderRadius: radii.md,
-    padding: space.lg,
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-    gap: space.md,
-  },
-  classInfo: { gap: space.xs },
-  className: { ...type.heading, color: colors.text },
-  classMeta: { ...type.caption, color: colors.textSecondary },
-  buttonGroup: { flexDirection: 'row', gap: space.sm, flexWrap: 'wrap' },
-  detailButton: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radii.sm,
-  },
-  detailButtonText: { ...type.button, color: colors.surface },
-  editButton: {
-    backgroundColor: colors.neutral.background,
-    borderColor: colors.neutral.border,
-    borderWidth: 1,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radii.sm,
-  },
-  editButtonText: { ...type.button, color: colors.text },
-  deleteButton: {
-    backgroundColor: colors.danger.background,
-    borderColor: colors.danger.border,
-    borderWidth: 1,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    borderRadius: radii.sm,
-  },
-  deleteButtonText: { ...type.button, color: colors.danger.text },
+  restricted: { flex: 1, justifyContent: 'center', padding: space.xl, width: '100%', maxWidth: layout.form, alignSelf: 'center' },
+  restrictedAction: { marginTop: space.md, alignSelf: 'stretch' },
+  listHeader: { gap: space.xl, paddingBottom: space.xl },
+  list: { padding: space.lg, paddingBottom: space.huge, width: '100%', maxWidth: 880, alignSelf: 'center' },
+  listCompact: { paddingHorizontal: space.md },
+  listWide: { paddingHorizontal: space.xxl, paddingTop: space.xxl },
+  addButton: { alignSelf: 'flex-start' },
+  separator: { height: space.sm },
+  classRow: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.rule, borderRadius: 10,
+    padding: space.sm, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs },
+  openClass: { minHeight: 48, flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.sm,
+    borderRadius: 6, paddingHorizontal: space.md },
+  openPressed: { backgroundColor: colors.primarySurface },
+  className: { ...type.bodyStrong, color: colors.text, flexShrink: 1 },
+  chevron: { fontSize: 24, lineHeight: 27, color: colors.primary },
+  rowActions: { flexShrink: 0, paddingHorizontal: space.xs },
 });

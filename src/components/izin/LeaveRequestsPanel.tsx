@@ -1,11 +1,20 @@
 import { useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConfirmationModal } from '@/components/common/ConfirmationModal';
 import { EmptyState } from '@/components/common/EmptyState';
+import { formatSessionDate } from '@/components/common/SessionSheet';
+import { ActionRow, Button, LoadingLine, Notice, Panel, type Tone, toneSolid, toneText } from '@/components/common/ui';
 import { AttendanceScreenHeader } from '@/components/rekap/AttendanceScreenHeader';
-import { LabSyncColors as colors, LabSyncRadii as radii, LabSyncSpacing as space, LabSyncTypography as type } from '@/constants/labsync-theme';
+import {
+  LabSyncColors as colors,
+  LabSyncLayout as layout,
+  LabSyncRadii as radii,
+  LabSyncSpacing as space,
+  LabSyncTypography as type,
+} from '@/constants/labsync-theme';
+import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 import type { LeaveDecision, LiveLeaveRequest } from '@/types/leave-request';
 import type { Session } from '@/types/session';
 import { classificationLabel, formatLeaveDateTime, leaveDecisionLabels, leaveReviewErrorMessage } from '@/utils/leave-request';
@@ -23,7 +32,20 @@ interface Props {
   onReview?: (id: string, decision: LeaveDecision) => Promise<void>;
 }
 
+const decisionTone: Record<LiveLeaveRequest['decision'], Tone> = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'danger',
+};
+
+const decisionGlyph: Record<LiveLeaveRequest['decision'], string> = {
+  pending: '◷',
+  approved: '✓',
+  rejected: '✕',
+};
+
 export function LeaveRequestsPanel({ mode, permitted, requests, sessions, session, loading, error, onBack, onRetry, onReview }: Props) {
+  const { compact, wide } = useResponsiveLayout();
   const [filter, setFilter] = useState<'pending' | 'all'>('pending');
   const [selection, setSelection] = useState<{ id: string; decision: LeaveDecision }>();
   const [confirming, setConfirming] = useState(false);
@@ -61,63 +83,86 @@ export function LeaveRequestsPanel({ mode, permitted, requests, sessions, sessio
       <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, compact && styles.compactContent, wide && styles.wideContent]}
         ListHeaderComponent={<View style={styles.header}>
           <AttendanceScreenHeader title={isAssistant ? 'Review Izin' : 'Status Izin Saya'} onBack={onBack} notice={error} onRetry={onRetry} />
           {permitted && <>
-            {session && <View style={styles.card}>
-              <Text accessibilityRole="header" style={styles.heading}>{session.courseName}</Text>
-              <Text style={styles.body}>Kelas {session.className} · {session.date}</Text>
-            </View>}
-            <Text style={styles.body}>{isAssistant
+            {session && <Panel style={styles.sessionPanel}>
+              <Text accessibilityRole="header" style={styles.sessionTitle}>{session.courseName}</Text>
+              <Text style={styles.sessionMeta}>Kelas {session.className} · {formatSessionDate(session.date)}</Text>
+            </Panel>}
+            <Text style={styles.intro}>{isAssistant
               ? 'Baca alasan dan saran kategori AI. Keputusan akhir tetap di tangan asisten.'
               : 'Status keputusan asisten diperbarui secara otomatis.'}</Text>
-            {!loading && !error && <Text style={styles.heading}>{pending.length} menunggu review · {accessible.length} pengajuan</Text>}
-            {isAssistant && <View style={styles.actions}>
-              {(['pending', 'all'] as const).map((value) => <Pressable key={value} accessibilityRole="button"
-                accessibilityState={{ selected: filter === value }} onPress={() => setFilter(value)}
-                style={[styles.button, filter === value && styles.selected]}>
-                <Text style={styles.buttonText}>{value === 'pending' ? 'Menunggu review' : 'Semua izin'}</Text>
-              </Pressable>)}
-            </View>}
+            <View style={styles.toolbar}>
+              {!loading && !error && <Text style={styles.count}>{pending.length} menunggu review · {accessible.length} pengajuan</Text>}
+              {isAssistant && <View style={styles.segment}>
+                {(['pending', 'all'] as const).map((value) => (
+                  <Button
+                    key={value}
+                    compact
+                    variant="quiet"
+                    selected={filter === value}
+                    label={value === 'pending' ? 'Menunggu review' : 'Semua izin'}
+                    onPress={() => setFilter(value)}
+                    style={styles.segmentButton}
+                  />
+                ))}
+              </View>}
+            </View>
           </>}
-          {!!feedback && <Text accessibilityLiveRegion="polite" style={styles.success}>{feedback}</Text>}
-          {!!writeError && <Text accessibilityRole="alert" style={styles.error}>{writeError}</Text>}
-          {saving && <Text accessibilityLiveRegion="polite" style={styles.body}>Menyimpan keputusan…</Text>}
+          {!!feedback && <Notice tone="success" message={feedback} live />}
+          {!!writeError && <Notice tone="danger" message={writeError} alert />}
+          {saving && <LoadingLine label="Menyimpan keputusan…" />}
         </View>}
-        ListEmptyComponent={loading ? <Text accessibilityLiveRegion="polite" style={styles.body}>Memuat data izin...</Text> : error ? undefined :
+        ListEmptyComponent={loading ? <LoadingLine label="Memuat data izin..." /> : error ? undefined :
           <EmptyState title={!permitted ? 'Halaman izin tidak tersedia' : isAssistant && filter === 'pending'
             ? 'Tidak ada izin menunggu review' : 'Belum ada pengajuan izin'}
           description={!permitted ? 'Kembali ke beranda dan pilih halaman yang sesuai dengan akun Anda.'
             : isAssistant ? 'Pengajuan izin untuk sesi ini akan muncul di sini.' : 'Pengajuan izin Anda akan ditampilkan di sini setelah dikirim.'} />}
         renderItem={({ item }) => {
           const targetSession = sessions.find((entry) => entry.id === item.sessionId);
-          return <View style={styles.card}>
-            <Text style={[styles.status, item.decision === 'approved' ? styles.success : item.decision === 'rejected' ? styles.error : styles.body]}>
-              {leaveDecisionLabels[item.decision]}
-            </Text>
-            {isAssistant ? <>
-              <Text accessibilityRole="header" style={styles.heading}>{item.studentName || 'Pengajuan praktikan'}</Text>
-              <Text style={styles.body}>{item.studentId ? `NIM ${item.studentId}` : 'Identitas praktikan belum tersedia'}</Text>
-            </> : <Text accessibilityRole="header" style={styles.heading}>{targetSession?.courseName ?? 'Detail sesi tidak tersedia'}</Text>}
-            {!isAssistant && targetSession && <Text style={styles.body}>Kelas {targetSession.className} · {targetSession.date}</Text>}
-            <Text style={styles.body}>Diajukan: {formatLeaveDateTime(item.submittedAtMillis)} WIB</Text>
-            <Text style={styles.label}>Alasan izin</Text>
-            <Text style={styles.reason}>{item.reason}</Text>
-            <View style={styles.classification}>
-              <Text style={styles.label}>{classificationLabel(item.classification)}</Text>
-              {isAssistant && item.classification.status !== 'classified' && <Text style={styles.body}>Anda tetap dapat meninjau alasan dan mengambil keputusan.</Text>}
+          const tone = decisionTone[item.decision];
+          const classified = item.classification.status === 'classified';
+          return <Panel accent={toneSolid[tone]} style={styles.card}>
+            <View style={styles.cardTop}>
+              <View style={[styles.decision, decisionSurface[tone]]}>
+                <Text accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
+                  style={[styles.decisionGlyph, { color: toneSolid[tone] }]}>{decisionGlyph[item.decision]}</Text>
+                <Text style={[styles.decisionText, { color: toneText[tone] }]}>{leaveDecisionLabels[item.decision]}</Text>
+              </View>
+              <Text style={styles.submitted}>Diajukan: {formatLeaveDateTime(item.submittedAtMillis)} WIB</Text>
             </View>
-            {item.decision !== 'pending' && <Text style={styles.body}>Direview asisten: {formatLeaveDateTime(item.reviewedAtMillis)} WIB</Text>}
-            {isAssistant && permitted && onReview && item.decision === 'pending' && <View style={styles.actions}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Terima izin ${item.studentName || 'praktikan'}`}
-                disabled={saving} accessibilityState={{ disabled: saving }} onPress={() => { setWriteError(''); setSelection({ id: item.id, decision: 'approved' }); setConfirming(true); }}
-                style={[styles.button, styles.approve, saving && styles.disabled]}><Text style={styles.approveText}>Terima izin</Text></Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Tolak izin ${item.studentName || 'praktikan'}`}
-                disabled={saving} accessibilityState={{ disabled: saving }} onPress={() => { setWriteError(''); setSelection({ id: item.id, decision: 'rejected' }); setConfirming(true); }}
-                style={[styles.button, saving && styles.disabled]}><Text style={styles.error}>Tolak izin</Text></Pressable>
-            </View>}
-          </View>;
+
+            <View style={styles.who}>
+              {isAssistant ? <>
+                <Text accessibilityRole="header" style={styles.heading}>{item.studentName || 'Pengajuan praktikan'}</Text>
+                <Text style={item.studentId ? styles.nim : styles.body}>{item.studentId ? `NIM ${item.studentId}` : 'Identitas praktikan belum tersedia'}</Text>
+              </> : <Text accessibilityRole="header" style={styles.heading}>{targetSession?.courseName ?? 'Detail sesi tidak tersedia'}</Text>}
+              {!isAssistant && targetSession && <Text style={styles.body}>Kelas {targetSession.className} · {formatSessionDate(targetSession.date)}</Text>}
+            </View>
+
+            <View style={styles.reasonBlock}>
+              <Text style={styles.label}>Alasan izin</Text>
+              <Text style={styles.reason}>{item.reason}</Text>
+            </View>
+
+            <View style={[styles.classification, classified ? styles.classificationReady : styles.classificationIdle]}>
+              <Text style={styles.classificationLabel}>{classificationLabel(item.classification)}</Text>
+              {isAssistant && !classified && <Text style={styles.body}>Anda tetap dapat meninjau alasan dan mengambil keputusan.</Text>}
+            </View>
+
+            {item.decision !== 'pending' && (
+              <Text style={styles.reviewed}>Direview asisten: {formatLeaveDateTime(item.reviewedAtMillis)} WIB</Text>
+            )}
+
+            {isAssistant && permitted && onReview && item.decision === 'pending' && <ActionRow>
+              <Button variant="primary" grow label="Terima izin" accessibilityLabel={`Terima izin ${item.studentName || 'praktikan'}`}
+                disabled={saving} onPress={() => { setWriteError(''); setSelection({ id: item.id, decision: 'approved' }); setConfirming(true); }} />
+              <Button variant="dangerOutline" grow label="Tolak izin" accessibilityLabel={`Tolak izin ${item.studentName || 'praktikan'}`}
+                disabled={saving} onPress={() => { setWriteError(''); setSelection({ id: item.id, decision: 'rejected' }); setConfirming(true); }} />
+            </ActionRow>}
+          </Panel>;
         }}
       />
       <ConfirmationModal visible={confirming && !!selected && !!selection} title={selection?.decision === 'approved' ? 'Terima pengajuan izin?' : 'Tolak pengajuan izin?'}
@@ -129,24 +174,72 @@ export function LeaveRequestsPanel({ mode, permitted, requests, sessions, sessio
   );
 }
 
+const decisionSurface = StyleSheet.create({
+  info: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
+  success: { backgroundColor: colors.success.background, borderColor: colors.success.border },
+  danger: { backgroundColor: colors.danger.background, borderColor: colors.danger.border },
+  warning: { backgroundColor: colors.warning.background, borderColor: colors.warning.border },
+  neutral: { backgroundColor: colors.neutral.background, borderColor: colors.neutral.border },
+});
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  content: { width: '100%', maxWidth: 640, alignSelf: 'center', padding: space.lg, paddingBottom: space.xxxl },
+  content: { width: '100%', maxWidth: layout.readable, alignSelf: 'center', padding: space.lg, paddingBottom: space.huge },
+  compactContent: { paddingHorizontal: space.md },
+  wideContent: { maxWidth: 760, paddingHorizontal: space.xxl, paddingTop: space.xxl },
   header: { gap: space.lg, paddingBottom: space.lg },
-  card: { padding: space.xl, gap: space.sm, marginBottom: space.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.neutral.border, borderRadius: radii.lg },
-  heading: { ...type.section, color: colors.text },
-  label: { ...type.button, color: colors.text },
+  sessionPanel: { gap: space.xs, backgroundColor: colors.surface },
+  sessionTitle: { ...type.heading, color: colors.text },
+  sessionMeta: { ...type.body, color: colors.textSecondary },
+  intro: { ...type.body, color: colors.textSecondary, maxWidth: 560 },
+  toolbar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.md,
+    paddingTop: space.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.rule,
+  },
+  count: { ...type.label, fontSize: 14, color: colors.text },
+  segment: {
+    flexDirection: 'row',
+    flexGrow: 1,
+    flexBasis: 240,
+    maxWidth: 360,
+    padding: 3,
+    gap: 3,
+    borderRadius: radii.md + 2,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+  },
+  segmentButton: { flexGrow: 1, flexBasis: 0, minWidth: 0, paddingHorizontal: space.sm, borderRadius: radii.md },
+  card: { marginBottom: space.md, gap: space.lg },
+  cardTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: space.sm },
+  decision: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 3,
+    paddingHorizontal: space.sm,
+    borderWidth: 1,
+    borderRadius: radii.sm,
+  },
+  decisionGlyph: { ...type.label, fontSize: 12, lineHeight: 16, fontWeight: '700' },
+  decisionText: { ...type.label, fontSize: 13, lineHeight: 18, fontWeight: '700' },
+  submitted: { ...type.caption, color: colors.textMuted, flexShrink: 1 },
+  who: { gap: space.xxs },
+  heading: { ...type.heading, color: colors.text },
+  nim: { ...type.mono, color: colors.textSecondary },
+  label: { ...type.eyebrow, color: colors.textMuted },
   body: { ...type.body, color: colors.textSecondary },
-  reason: { ...type.body, color: colors.text, flexShrink: 1 },
-  classification: { padding: space.md, gap: space.sm, backgroundColor: colors.primarySurface, borderRadius: radii.md },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
-  button: { flexGrow: 1, flexBasis: 130, minHeight: 48, padding: space.md, borderWidth: 1, borderColor: colors.borderDark, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
-  selected: { backgroundColor: colors.primarySurface, borderColor: colors.primary },
-  buttonText: { ...type.button, color: colors.primary },
-  approve: { backgroundColor: colors.primary, borderColor: colors.primary },
-  approveText: { ...type.button, color: colors.surface },
-  status: { ...type.button },
-  success: { ...type.body, color: colors.success.text },
-  error: { ...type.body, color: colors.danger.text },
-  disabled: { opacity: 0.5 },
+  reasonBlock: { gap: space.xs },
+  reason: { ...type.body, fontSize: 16, lineHeight: 24, color: colors.text, flexShrink: 1 },
+  classification: { paddingVertical: space.md, paddingHorizontal: space.md + 2, gap: space.xs, borderRadius: radii.md, borderWidth: 1 },
+  classificationReady: { backgroundColor: colors.primarySurface, borderColor: colors.primaryBorder },
+  classificationIdle: { backgroundColor: colors.surfaceSunken, borderColor: colors.neutral.border, borderStyle: 'dashed' },
+  classificationLabel: { ...type.label, fontSize: 14, lineHeight: 20, color: colors.text },
+  reviewed: { ...type.caption, color: colors.textSecondary },
 });

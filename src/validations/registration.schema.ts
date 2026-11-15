@@ -19,6 +19,8 @@ export function validateRegistrationInput(input: RegistrationInput): ValidationR
   const name = input.name?.trim() ?? '';
   if (!name) {
     errors.name = 'Nama lengkap wajib diisi.';
+  } else if (name.length > 200) {
+    errors.name = 'Nama lengkap maksimal 200 karakter.';
   } else if (name.length < 2) {
     errors.name = 'Nama lengkap minimal 2 karakter.';
   }
@@ -26,6 +28,8 @@ export function validateRegistrationInput(input: RegistrationInput): ValidationR
   const identifier = input.identifier?.trim() ?? '';
   if (!identifier) {
     errors.identifier = input.role === 'ASISTEN' ? 'Kode asisten wajib diisi.' : 'NIM wajib diisi.';
+  } else if (identifier.length > 40) {
+    errors.identifier = 'NIM maksimal 40 karakter.';
   } else if (identifier.length < 3) {
     errors.identifier = input.role === 'ASISTEN' ? 'Kode asisten minimal 3 karakter.' : 'NIM minimal 3 karakter.';
   }

@@ -1,17 +1,19 @@
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useState } from 'react';
-import { ActivityIndicator, Button, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActionRow, Button, LoadingLine, Notice, Rule, TextField } from '@/components/common/ui';
+import { Wordmark } from '@/components/common/Wordmark';
 import {
   LabSyncColors as colors,
-  LabSyncRadii as radii,
+  LabSyncLayout as layout,
   LabSyncSpacing as space,
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import { firebase } from '@/firebase/client';
+import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 import { registerAccount } from '@/services/registration';
-import type { UserRole } from '@/types/user';
 
 export function FoundationGate({ login, loading, message, onRetry, onLogout }: {
   login?: boolean;
@@ -20,6 +22,7 @@ export function FoundationGate({ login, loading, message, onRetry, onLogout }: {
   onRetry?: () => void;
   onLogout?: () => void;
 }) {
+  const { split, compact } = useResponsiveLayout();
   const [isRegistering, setIsRegistering] = useState(false);
 
   // Login form state
@@ -31,7 +34,6 @@ export function FoundationGate({ login, loading, message, onRetry, onLogout }: {
   const [regIdentifier, setRegIdentifier] = useState('');
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
-  const [regRole, setRegRole] = useState<UserRole>('PRAKTISAN');
 
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -62,11 +64,11 @@ export function FoundationGate({ login, loading, message, onRetry, onLogout }: {
         identifier: regIdentifier,
         email: regEmail,
         password: regPassword,
-        role: regRole,
+        role: 'PRAKTISAN',
       });
 
       if (!result.success) {
-        setError(result.error ?? 'Pendaftaran akun gagal.');
+        setError(Object.values(result.fieldErrors ?? {})[0] ?? result.error ?? 'Pendaftaran akun gagal.');
       }
     } catch {
       setError('Terjadi kesalahan saat pendaftaran.');
@@ -75,121 +77,128 @@ export function FoundationGate({ login, loading, message, onRetry, onLogout }: {
     }
   }
 
+  const switchMode = (registering: boolean) => {
+    setError('');
+    setIsRegistering(registering);
+  };
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.screen}>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scroll}>
-          <View style={styles.content}>
-            <Text accessibilityRole="header" style={styles.title}>LabSync</Text>
-            {loading && <ActivityIndicator color={colors.primary} />}
-            {!!message && <Text accessibilityLiveRegion="polite" style={styles.text}>{message}</Text>}
-            {login && !isRegistering && (
-              <>
-                <Text style={styles.text}>Masuk dengan akun LabSync.</Text>
-                <TextInput accessibilityLabel="Email" placeholder="Email" style={styles.input} value={email}
-                  onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-                <TextInput accessibilityLabel="Kata sandi" placeholder="Kata sandi" style={styles.input}
-                  value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password"
-                  onSubmitEditing={() => { void submitLogin(); }} />
-                <Button title={busy ? 'Masuk…' : 'Masuk'} onPress={() => { void submitLogin(); }} disabled={busy || !email.trim() || !password} />
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={[styles.scroll, compact && styles.scrollCompact]}
+        >
+          <View style={[styles.shell, split && styles.shellSplit]}>
+            <View style={[styles.brand, split && styles.brandSplit]}>
+              <Wordmark size={split ? 'lg' : 'md'} />
+              {split && <Rule strong style={styles.brandRule} />}
+            </View>
 
-                <View style={styles.switchContainer}>
-                  <Text style={styles.textSecondary}>Belum memiliki akun?</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    style={styles.switchButton}
-                    onPress={() => {
-                      setError('');
-                      setIsRegistering(true);
-                    }}
-                  >
-                    <Text style={styles.switchLink}>Daftar Akun Baru</Text>
-                  </Pressable>
+            <View style={[styles.content, split && styles.contentSplit]}>
+              {!split && <Rule strong />}
+
+              {loading && <LoadingLine label={message ?? ''} />}
+              {!loading && !!message && (
+                <Notice tone={onRetry ? 'danger' : 'neutral'} message={message} live />
+              )}
+
+              {login && !isRegistering && (
+                <View style={styles.form}>
+                  <Text accessibilityRole="header" style={styles.formTitle}>Masuk dengan akun LabSync.</Text>
+                  <TextField
+                    label="Email"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                  />
+                  <TextField
+                    label="Kata sandi"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoComplete="current-password"
+                    textContentType="password"
+                    onSubmitEditing={() => { void submitLogin(); }}
+                  />
+                  {!!error && <Notice tone="danger" message={error} alert />}
+                  <Button
+                    variant="primary"
+                    label={busy ? 'Masuk…' : 'Masuk'}
+                    onPress={() => { void submitLogin(); }}
+                    disabled={busy || !email.trim() || !password}
+                  />
+                  <Rule />
+                  <View style={styles.switchRow}>
+                    <Text style={styles.switchText}>Belum memiliki akun?</Text>
+                    <Button variant="quiet" compact label="Daftar Akun Baru" onPress={() => switchMode(true)} />
+                  </View>
                 </View>
-              </>
-            )}
-            {login && isRegistering && (
-              <>
-                <Text style={styles.text}>Daftar Akun Baru LabSync.</Text>
-                <TextInput
-                  accessibilityLabel="Nama lengkap"
-                  placeholder="Nama Lengkap"
-                  style={styles.input}
-                  value={regName}
-                  onChangeText={setRegName}
-                />
-                <TextInput
-                  accessibilityLabel={regRole === 'ASISTEN' ? 'Kode asisten' : 'NIM'}
-                  placeholder={regRole === 'ASISTEN' ? 'Kode Asisten (misal: AST-01)' : 'NIM Praktikan (misal: 123210001)'}
-                  style={styles.input}
-                  value={regIdentifier}
-                  onChangeText={setRegIdentifier}
-                  autoCapitalize={regRole === 'ASISTEN' ? 'characters' : 'none'}
-                />
-                <TextInput
-                  accessibilityLabel="Email pendaftaran"
-                  placeholder="Email"
-                  style={styles.input}
-                  value={regEmail}
-                  onChangeText={setRegEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                  autoComplete="email"
-                />
-                <TextInput
-                  accessibilityLabel="Kata sandi pendaftaran"
-                  placeholder="Kata Sandi (minimal 6 karakter)"
-                  style={styles.input}
-                  value={regPassword}
-                  onChangeText={setRegPassword}
-                  secureTextEntry
-                  autoComplete="new-password"
-                />
+              )}
 
-                <Text style={styles.roleLabel}>Pilih Peran:</Text>
-                <View style={styles.roleRow}>
-                  <Pressable
-                    style={[styles.roleOption, regRole === 'PRAKTISAN' && styles.roleOptionActive]}
-                    onPress={() => setRegRole('PRAKTISAN')}
-                  >
-                    <Text style={[styles.roleText, regRole === 'PRAKTISAN' && styles.roleTextActive]}>
-                      Praktikan
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.roleOption, regRole === 'ASISTEN' && styles.roleOptionActive]}
-                    onPress={() => setRegRole('ASISTEN')}
-                  >
-                    <Text style={[styles.roleText, regRole === 'ASISTEN' && styles.roleTextActive]}>
-                      Asisten Lab
-                    </Text>
-                  </Pressable>
+              {login && isRegistering && (
+                <View style={styles.form}>
+                  <View style={styles.formIntro}>
+                    <Text accessibilityRole="header" style={styles.formTitle}>Buat akun praktikan.</Text>
+                    <Text style={styles.formNote}>Untuk akses asisten, hubungi PM.</Text>
+                  </View>
+                  <TextField label="Nama lengkap" value={regName} onChangeText={setRegName} autoComplete="name" />
+                  <TextField
+                    label="NIM"
+                    accessibilityLabel="NIM"
+                    placeholder="NIM Praktikan"
+                    mono
+                    value={regIdentifier}
+                    onChangeText={setRegIdentifier}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                  />
+                  <TextField
+                    label="Email"
+                    accessibilityLabel="Email pendaftaran"
+                    value={regEmail}
+                    onChangeText={setRegEmail}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    autoComplete="email"
+                  />
+                  <TextField
+                    label="Kata sandi"
+                    accessibilityLabel="Kata sandi pendaftaran"
+                    hint="Minimal 6 karakter."
+                    value={regPassword}
+                    onChangeText={setRegPassword}
+                    secureTextEntry
+                    autoComplete="new-password"
+                  />
+                  {!!error && <Notice tone="danger" message={error} alert />}
+                  <Button
+                    variant="primary"
+                    label={busy ? 'Mendaftarkan…' : 'Daftar Sekarang'}
+                    onPress={() => { void submitRegister(); }}
+                    disabled={busy || !regName.trim() || !regIdentifier.trim() || !regEmail.trim() || !regPassword}
+                  />
+                  <Rule />
+                  <View style={styles.switchRow}>
+                    <Text style={styles.switchText}>Sudah memiliki akun?</Text>
+                    <Button variant="quiet" compact label="Masuk di sini" onPress={() => switchMode(false)} />
+                  </View>
                 </View>
+              )}
 
-                <Button
-                  title={busy ? 'Mendaftarkan…' : 'Daftar Sekarang'}
-                  onPress={() => { void submitRegister(); }}
-                  disabled={busy || !regName.trim() || !regIdentifier.trim() || !regEmail.trim() || !regPassword}
-                />
-
-                <View style={styles.switchContainer}>
-                  <Text style={styles.textSecondary}>Sudah memiliki akun?</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    style={styles.switchButton}
-                    onPress={() => {
-                      setError('');
-                      setIsRegistering(false);
-                    }}
-                  >
-                    <Text style={styles.switchLink}>Masuk di sini</Text>
-                  </Pressable>
-                </View>
-              </>
-            )}
-            {!!error && <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
-            {onRetry && <Button title="Coba lagi" onPress={onRetry} />}
-            {onLogout && <Button title="Keluar" onPress={onLogout} />}
+              {!login && !!error && <Notice tone="danger" message={error} alert />}
+              {(onRetry || onLogout) && (
+                <ActionRow>
+                  {onRetry && <Button variant="primary" grow label="Coba lagi" onPress={onRetry} />}
+                  {onLogout && <Button grow label="Keluar" onPress={onLogout} />}
+                </ActionRow>
+              )}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -199,48 +208,26 @@ export function FoundationGate({ login, loading, message, onRetry, onLogout }: {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  scroll: { flexGrow: 1, justifyContent: 'center', padding: space.lg },
-  content: { width: '100%', maxWidth: 420, alignSelf: 'center', gap: space.lg },
-  title: { ...type.title, color: colors.primary },
-  text: { ...type.body, color: colors.text },
-  textSecondary: { ...type.caption, color: colors.textSecondary },
-  input: {
-    ...type.body,
-    color: colors.text,
-    borderColor: colors.borderDark,
-    borderWidth: 1,
-    borderRadius: radii.sm,
-    minHeight: 48,
-    padding: space.md,
+  scroll: { flexGrow: 1, justifyContent: 'center', padding: space.xxl },
+  scrollCompact: { padding: space.lg },
+  shell: { width: '100%', maxWidth: layout.form, alignSelf: 'center', gap: space.xl },
+  shellSplit: { maxWidth: 920, flexDirection: 'row', alignItems: 'flex-start', gap: space.huge },
+  brand: { gap: space.lg },
+  brandSplit: { flex: 1, paddingTop: space.xxl },
+  brandRule: { width: 72 },
+  content: { gap: space.xl },
+  contentSplit: {
+    width: layout.form,
+    padding: space.xxxl,
     backgroundColor: colors.surface,
-  },
-  roleLabel: { ...type.caption, color: colors.textSecondary, marginBottom: -space.sm },
-  roleRow: { flexDirection: 'row', gap: space.md },
-  roleOption: {
-    flex: 1,
-    minHeight: 44,
     borderWidth: 1,
-    borderColor: colors.borderDark,
-    borderRadius: radii.sm,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: space.sm,
+    borderColor: colors.rule,
+    borderRadius: 16,
   },
-  roleOptionActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySurface,
-  },
-  roleText: { ...type.button, color: colors.textSecondary },
-  roleTextActive: { color: colors.primary, fontWeight: '700' },
-  switchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.xs,
-    marginTop: space.xs,
-  },
-  switchButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: space.xs },
-  switchLink: { ...type.button, color: colors.primary, textDecorationLine: 'underline' },
-  errorText: { ...type.body, color: colors.danger.text },
+  form: { gap: space.lg },
+  formIntro: { gap: space.xs },
+  formTitle: { ...type.heading, color: colors.text },
+  formNote: { ...type.body, color: colors.textSecondary },
+  switchRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: space.xs },
+  switchText: { ...type.body, color: colors.textSecondary },
 });
