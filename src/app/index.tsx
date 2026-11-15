@@ -35,7 +35,11 @@ export default function HomeScreen() {
             <Pressable accessibilityRole="button" onPress={logout} style={styles.button}>
               <Text style={styles.linkLabel}>Keluar</Text>
             </Pressable>
-            {!isAssistant && (
+            {isAssistant ? (
+              <Pressable accessibilityRole="button" onPress={() => router.push('/manage')} style={styles.button}>
+                <Text style={styles.linkLabel}>Kelola Kelas & Sesi</Text>
+              </Pressable>
+            ) : (
               <Pressable accessibilityRole="button" onPress={() => router.push('/history')} style={styles.button}>
                 <Text style={styles.linkLabel}>Riwayat Saya</Text>
               </Pressable>
