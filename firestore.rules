@@ -35,6 +35,13 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow get: if isOwner(uid);
+      allow create: if isOwner(uid) &&
+        request.resource.data.keys().hasOnly(['name', 'identifier', 'role']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.identifier is string &&
+        request.resource.data.identifier.size() > 0 &&
+        request.resource.data.role in ['ASISTEN', 'PRAKTISAN'];
     }
 
     match /classes/{classId} {
