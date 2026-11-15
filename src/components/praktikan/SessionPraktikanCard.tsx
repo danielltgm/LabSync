@@ -2,20 +2,58 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { StatusBadge } from '@/components/common/StatusBadge';
+import type { LeaveRequestRecord } from '@/firebase/queries';
 import type { Session } from '@/types/session';
 
 export interface SessionPraktikanCardProps {
   session: Session;
   isAttended: boolean;
   onPressAttendance?: (session: Session) => void;
+  leaveRequest?: LeaveRequestRecord;
+  onPressLeave?: (session: Session) => void;
 }
 
 export function SessionPraktikanCard({
   session,
   isAttended,
   onPressAttendance,
+  leaveRequest,
+  onPressLeave,
 }: SessionPraktikanCardProps) {
-  const canAttend = session.status === 'DIBUKA' && !isAttended && !!onPressAttendance;
+  const canAttend = session.status === 'DIBUKA' && !isAttended && !leaveRequest && !!onPressAttendance;
+  const canRequestLeave = !isAttended && !leaveRequest && session.status !== 'SELESAI' && !!onPressLeave;
+
+  const getDecisionBadge = (decision: LeaveRequestRecord['decision']) => {
+    if (decision === 'approved') {
+      return {
+        label: 'Status Izin: Disetujui Asisten',
+        containerStyle: styles.leaveApproved,
+        textStyle: styles.leaveTextApproved,
+      };
+    }
+    if (decision === 'rejected') {
+      return {
+        label: 'Status Izin: Ditolak Asisten',
+        containerStyle: styles.leaveRejected,
+        textStyle: styles.leaveTextRejected,
+      };
+    }
+    return {
+      label: 'Status Izin: Menunggu Review Asisten',
+      containerStyle: styles.leavePending,
+      textStyle: styles.leaveTextPending,
+    };
+  };
+
+  const getClassificationLabel = (classification: LeaveRequestRecord['classification']) => {
+    if (classification.status === 'classified') {
+      return `Kategori AI: ${classification.category}`;
+    }
+    if (classification.status === 'unavailable') {
+      return 'Kategori AI: Tidak tersedia (review manual)';
+    }
+    return 'Kategori AI: Sedang diklasifikasi...';
+  };
 
   const getButtonConfig = () => {
     if (isAttended) {
@@ -63,6 +101,20 @@ export function SessionPraktikanCard({
         <Text style={styles.metaText}>👤 Asisten: {session.assistantName}</Text>
       </View>
 
+      {leaveRequest ? (
+        <View style={[styles.leaveBanner, getDecisionBadge(leaveRequest.decision).containerStyle]}>
+          <Text style={[styles.leaveDecisionText, getDecisionBadge(leaveRequest.decision).textStyle]}>
+            {getDecisionBadge(leaveRequest.decision).label}
+          </Text>
+          <Text style={styles.leaveMetaText}>
+            {getClassificationLabel(leaveRequest.classification)}
+          </Text>
+          <Text style={styles.leaveReasonText}>
+            Alasan: {leaveRequest.reason}
+          </Text>
+        </View>
+      ) : null}
+
       <Pressable
         disabled={!canAttend}
         onPress={() => onPressAttendance?.(session)}
@@ -79,6 +131,23 @@ export function SessionPraktikanCard({
           {buttonConfig.label}
         </Text>
       </Pressable>
+
+      {canRequestLeave ? (
+        <Pressable
+          onPress={() => onPressLeave?.(session)}
+          accessibilityRole="button"
+          accessibilityLabel="Ajukan Izin"
+          style={({ pressed }) => [
+            styles.buttonBase,
+            styles.buttonLeaveOutline,
+            pressed && styles.buttonLeavePressed,
+          ]}
+        >
+          <Text style={[styles.buttonTextBase, styles.buttonTextLeaveOutline]}>
+            Ajukan Izin
+          </Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -161,6 +230,64 @@ const styles = StyleSheet.create({
   },
   buttonTextDisabled: {
     color: '#94A3B8',
+  },
+  buttonLeaveOutline: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#CBD5E1',
+    marginTop: 8,
+  },
+  buttonLeavePressed: {
+    backgroundColor: '#F8FAFC',
+    opacity: 0.85,
+  },
+  buttonTextLeaveOutline: {
+    color: '#334155',
+    fontWeight: '600',
+  },
+  leaveBanner: {
+    borderRadius: 10,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+    gap: 4,
+  },
+  leavePending: {
+    backgroundColor: '#FEF3C7',
+    borderColor: '#FCD34D',
+  },
+  leaveApproved: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  leaveRejected: {
+    backgroundColor: '#FEE2E2',
+    borderColor: '#FCA5A5',
+  },
+  leaveDecisionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
+  },
+  leaveTextPending: {
+    color: '#B45309',
+  },
+  leaveTextApproved: {
+    color: '#15803D',
+  },
+  leaveTextRejected: {
+    color: '#B91C1C',
+  },
+  leaveMetaText: {
+    fontSize: 12,
+    fontWeight: '500',
+    lineHeight: 16,
+    color: '#334155',
+  },
+  leaveReasonText: {
+    fontSize: 12,
+    fontWeight: '400',
+    lineHeight: 16,
+    color: '#475569',
   },
 });
 

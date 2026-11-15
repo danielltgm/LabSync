@@ -1,9 +1,11 @@
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SessionCard } from '@/components/asisten/SessionCard';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LeaveRequestModal } from '@/components/praktikan/LeaveRequestModal';
 import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
 import {
   LabSyncColors as colors,
@@ -12,12 +14,34 @@ import {
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
+import { firebase } from '@/firebase/client';
+import { submitLeaveRequest } from '@/firebase/queries';
 import { useAttendance } from '@/hooks/use-attendance';
+import { useLeaveRequests } from '@/hooks/use-leave-requests';
+import type { LiveSession } from '@/types/sprint2';
 
 export default function HomeScreen() {
   const { sessions, activeUser, loadingSessions, error, openSession, closeSession, logout } = useLabSync();
   const isAssistant = activeUser.role === 'ASISTEN';
   const attendance = useAttendance(isAssistant ? undefined : activeUser.id);
+  const leaveRequests = useLeaveRequests(isAssistant ? undefined : activeUser.id);
+  const [selectedLeaveSession, setSelectedLeaveSession] = useState<LiveSession | null>(null);
+  const [leaveActionError, setLeaveActionError] = useState<string | null>(null);
+
+  const handleSubmitLeave = async ({ reason }: { sessionId: string; reason: string }) => {
+    if (!firebase || !selectedLeaveSession) {
+      throw new Error('Layanan Firebase belum siap.');
+    }
+    setLeaveActionError(null);
+    await submitLeaveRequest(firebase.db, activeUser.id, {
+      sessionId: selectedLeaveSession.id,
+      classId: selectedLeaveSession.classId,
+      reason,
+    });
+    setSelectedLeaveSession(null);
+  };
+
+  const activeBannerError = error || attendance.error || leaveRequests.error || leaveActionError;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -44,7 +68,7 @@ export default function HomeScreen() {
               <Text accessibilityRole="header" style={styles.sectionTitle}>Jadwal praktikum</Text>
               {!loadingSessions && <Text style={styles.caption}>{sessions.length} sesi</Text>}
             </View>
-            {!!(error || attendance.error) && <Text accessibilityRole="alert" style={styles.body}>{error || attendance.error}</Text>}
+            {!!activeBannerError && <Text accessibilityRole="alert" style={styles.body}>{activeBannerError}</Text>}
           </View>
         }
         ListEmptyComponent={loadingSessions
@@ -59,9 +83,29 @@ export default function HomeScreen() {
             onViewRecap={(id) => router.push({ pathname: '/rekap/[id]', params: { id } })}
           />
         ) : (
-          <SessionPraktikanCard session={item} isAttended={attendance.records.some((record) => record.sessionId === item.id)} />
+          <SessionPraktikanCard
+            session={item}
+            isAttended={attendance.records.some((record) => record.sessionId === item.id)}
+            leaveRequest={leaveRequests.records.find((leave) => leave.sessionId === item.id)}
+            onPressLeave={() => {
+              setLeaveActionError(null);
+              setSelectedLeaveSession(item);
+            }}
+          />
         )}
       />
+      {!isAssistant && selectedLeaveSession ? (
+        <LeaveRequestModal
+          visible={Boolean(selectedLeaveSession)}
+          sessionId={selectedLeaveSession.id}
+          courseName={selectedLeaveSession.courseName}
+          className={selectedLeaveSession.className}
+          studentId={activeUser.identifier}
+          studentName={activeUser.name}
+          onClose={() => setSelectedLeaveSession(null)}
+          onSubmit={handleSubmitLeave}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
