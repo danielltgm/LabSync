@@ -250,3 +250,31 @@ test('SRS-01: user self-registration creates profile with valid role and matchin
     role: 'PRAKTISAN',
   }));
 });
+
+test('enrolled student can create attendance only once while the session is open', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), { classId: 'mobile', status: 'TERJADWAL' });
+  });
+
+  const student = account('student');
+  const outsider = account('outsider');
+  const assistant = account('assistant');
+  const sessionRef = doc(assistant, 'sessions/mobile-2');
+  const attendanceRef = doc(student, 'attendance/mobile-2__student');
+  const record = { studentUid: 'student', classId: 'mobile', sessionId: 'mobile-2', notes: 'PC-01' };
+
+  await assertFails(setDoc(attendanceRef, record));
+  await assertSucceeds(updateDoc(sessionRef, { status: 'DIBUKA' }));
+
+  await assertFails(setDoc(doc(outsider, 'attendance/mobile-2__outsider'), {
+    studentUid: 'outsider', classId: 'mobile', sessionId: 'mobile-2',
+  }));
+  await assertFails(setDoc(doc(student, 'attendance/mobile-2__other'), record));
+  await assertFails(setDoc(attendanceRef, { ...record, classId: 'other' }));
+
+  await assertSucceeds(setDoc(attendanceRef, record));
+  await assertFails(setDoc(attendanceRef, { ...record, notes: 'PC-99' }));
+  assert.equal((await assertSucceeds(getDoc(attendanceRef))).data()?.notes, 'PC-01');
+
+  await assertSucceeds(updateDoc(sessionRef, { status: 'SELESAI' }));
+});

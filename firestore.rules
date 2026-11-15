@@ -33,6 +33,15 @@ service cloud.firestore {
       return (hasRole('PRAKTISAN') && isOwner(data.studentUid)) || managesClass(data.classId);
     }
 
+    function canCreateAttendance(attendanceId, data) {
+      return isOwner(data.studentUid) &&
+        enrolledIn(data.classId) &&
+        data.sessionId is string &&
+        attendanceId == data.sessionId + '__' + request.auth.uid &&
+        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId &&
+        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.status == 'DIBUKA';
+    }
+
     match /users/{uid} {
       allow get: if isOwner(uid);
       allow create: if isOwner(uid) &&
@@ -90,6 +99,7 @@ service cloud.firestore {
 
     match /attendance/{attendanceId} {
       allow read: if canReadStudentRecord(resource.data);
+      allow create: if canCreateAttendance(attendanceId, request.resource.data);
     }
 
     match /leaveRequests/{requestId} {
