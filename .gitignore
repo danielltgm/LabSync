@@ -37,6 +37,12 @@ firebase-debug*.log
 firestore-debug.log
 ui-debug.log
 
+# Private native Firebase files and service account downloads
+google-services*.json
+GoogleService-Info*.plist
+*firebase-adminsdk*.json
+service-account*.json
+
 # typescript
 *.tsbuildinfo
 

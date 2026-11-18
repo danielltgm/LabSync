@@ -1,0 +1,9 @@
+{
+  "policyVersion": "s3-v1",
+  "timezone": "Asia/Jakarta",
+  "demoPlatforms": [],
+  "qrTtlSeconds": 60,
+  "maxLocationAgeMs": 30000,
+  "maxAccuracyMeters": 30,
+  "maxFutureSkewMs": 5000
+}

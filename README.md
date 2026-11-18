@@ -1,8 +1,14 @@
 # 🧪 LabSync
 
-Satu app buat praktikum, dari cek jadwal sampai rekap presensi. Asisten buka sesi, praktikan lihat statusnya langsung. Sekarang LabSync lagi masuk Sprint 2, pakai akun Firebase dan data yang bisa diakses bareng.
+Satu app buat praktikum, dari cek jadwal sampai rekap presensi. Asisten buka sesi, praktikan lihat statusnya langsung. Fondasi Sprint 2 memakai akun Firebase dan data bersama; persiapan Sprint 3 menambahkan rancangan presensi QR/geotag, Maps dan FCM.
 
 **Stack** · Expo Router · React Native · TypeScript · Firebase Auth · Cloud Firestore
+
+## Sprint 3 — persiapan tim
+
+PM Sprint 3 adalah **Muhammad Hafidh Zufar Dewantara**. Daniel menangani backend QR/geotag dan lab; Agiel menangani halaman presensi; Yudha menangani Maps dan FCM. Mulai dari [SRS dan pembagian Sprint 3](docs/sprint-3/README.md), [setup](docs/sprint-3/setup.md), serta [matriks pengujian](docs/sprint-3/testing.md). Bagian Sprint 1/2 di bawah tetap menjadi riwayat dan panduan fitur existing.
+
+Jalankan `npm run sprint3:check` untuk melihat konfigurasi yang belum tersedia. Koordinat LAB AP/B/C/D dan perangkat demo belum ditentukan; fitur Sprint 3 belum diimplementasikan pada fondasi ini. Remote push memerlukan development build sesuai platform yang nanti dipilih.
 
 ![Tampilan web LabSync untuk asisten dengan sesi Pemrograman Mobile yang sedang dibuka](docs/screenshots/labsync-asisten.png)
 
