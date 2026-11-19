@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { SessionSheet } from '@/components/common/SessionSheet';
 import { Button, Eyebrow, LoadingLine, MetaList, MetaRow, Notice, Rule } from '@/components/common/ui';
 import { AttendanceStatusCard } from '@/components/presensi/AttendanceStatusCard';
+import { CheckInFeedbackCard } from '@/components/presensi/CheckInFeedbackCard';
 import { CheckInSubmitPanel } from '@/components/presensi/CheckInSubmitPanel';
 import { LocationHintBanner } from '@/components/presensi/LocationHintBanner';
 import { LocationStatusCard } from '@/components/presensi/LocationStatusCard';
@@ -18,22 +19,20 @@ import {
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
-import { firebase } from '@/firebase/client';
 import { useCameraGate } from '@/hooks/use-camera-gate';
+import { useCheckInController } from '@/hooks/use-checkin-controller';
 import { useDeviceLocation } from '@/hooks/use-device-location';
 import { useLocationHint } from '@/hooks/use-location-hint';
 import { usePresensiRealtime } from '@/hooks/use-presensi-realtime';
 import { usePresensiSessionDetail } from '@/hooks/use-presensi-session-detail';
 import { useQrScanner } from '@/hooks/use-qr-scanner';
-import { submitAttendanceCheckIn } from '@/services/attendance/check-in-client';
-import { buildCheckInRequest, resolveCheckInUrl } from '@/services/attendance/check-in-request';
-import { validateDeviceLocationFix } from '@/services/attendance/location-validator';
+import type { RecoveryAction } from '@/services/attendance/check-in-feedback';
 import { buildPresensiSessionMeta } from '@/services/attendance/session-view';
 
 export default function PresensiSessionScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const sessionId = typeof params.id === 'string' ? params.id : undefined;
-  const { activeUser } = useLabSync();
+  const { activeUser, logout } = useLabSync();
   const detail = usePresensiSessionDetail(sessionId);
   const realtime = usePresensiRealtime(
     detail.status === 'ready' ? sessionId : undefined,
@@ -42,38 +41,31 @@ export default function PresensiSessionScreen() {
   const liveSession = realtime.session ?? detail.session;
   const liveMeta = liveSession ? buildPresensiSessionMeta(liveSession, detail.lab) : detail.meta;
   const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const canAttend = Boolean(realtime.availability?.canScan);
-  const cameraGate = useCameraGate(canAttend && !submitting);
-  const qrScanner = useQrScanner(sessionId ?? '', submitting);
   const deviceLocation = useDeviceLocation();
+  const qrScanner = useQrScanner(sessionId ?? '');
+  const checkIn = useCheckInController(sessionId, qrScanner, deviceLocation);
+  const cameraGate = useCameraGate(canAttend && !checkIn.submitting);
   const locationHint = useLocationHint(deviceLocation.fix, liveMeta, detail.lab);
 
-  const handleSubmit = async () => {
-    if (!sessionId || !qrScanner.payload || !deviceLocation.fix || submitting) return;
-    const freshness = validateDeviceLocationFix(deviceLocation.fix);
-    if (!freshness.ok) {
-      await deviceLocation.refreshLocation();
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const request = buildCheckInRequest({
-        sessionId,
-        qr: qrScanner.payload,
-        location: deviceLocation.fix,
-        notes,
-      });
-      await submitAttendanceCheckIn(request, {
-        endpointUrl: resolveCheckInUrl(process.env.EXPO_PUBLIC_LABSYNC_API_ORIGIN),
-        getIdToken: async () => (await firebase?.auth.currentUser?.getIdToken()) ?? null,
-      });
-    } finally {
-      setSubmitting(false);
+  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
+
+  const handleRecovery = (action: RecoveryAction) => {
+    if (action === 'rescan-qr') {
+      checkIn.clearFeedback();
+      qrScanner.resetQr();
+      void cameraGate.startScan();
+    } else if (action === 'refresh-location') {
+      checkIn.clearFeedback();
+      void deviceLocation.refreshLocation();
+    } else if (action === 'retry-submit') {
+      void checkIn.submit(notes);
+    } else if (action === 'back-to-home') {
+      goBack();
+    } else if (action === 'relogin') {
+      logout();
     }
   };
-
-  const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -119,19 +111,23 @@ export default function PresensiSessionScreen() {
 
             {realtime.error ? <Notice tone="warning" message={realtime.error} /> : null}
             {realtime.availability ? <AttendanceStatusCard availability={realtime.availability} /> : null}
+            {checkIn.feedback ? (
+              <CheckInFeedbackCard feedback={checkIn.feedback} onRecovery={handleRecovery} />
+            ) : null}
+
             {canAttend ? (
               <>
-                <QrScannerPanel cameraGate={cameraGate} scanner={qrScanner} disabled={!canAttend || submitting} />
-                <LocationStatusCard location={deviceLocation} disabled={!canAttend || submitting} />
+                <QrScannerPanel cameraGate={cameraGate} scanner={qrScanner} disabled={!canAttend || checkIn.submitting} />
+                <LocationStatusCard location={deviceLocation} disabled={!canAttend || checkIn.submitting} />
                 {locationHint ? <LocationHintBanner hint={locationHint} /> : null}
                 <CheckInSubmitPanel
                   notes={notes}
                   onChangeNotes={setNotes}
                   hasValidQr={qrScanner.payload !== null}
                   hasValidLocation={deviceLocation.status === 'ready' && deviceLocation.fix !== null}
-                  submitting={submitting}
+                  submitting={checkIn.submitting}
                   disabled={!canAttend}
-                  onSubmit={() => void handleSubmit()}
+                  onSubmit={() => void checkIn.submit(notes)}
                 />
               </>
             ) : null}
