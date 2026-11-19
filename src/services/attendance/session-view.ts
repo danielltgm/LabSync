@@ -5,7 +5,13 @@ import type {
   LabId,
   Sprint3SessionFields,
 } from '../../types/sprint3';
-import { REQUIRED_LABS } from '../../utils/sprint3-config';
+
+const LAB_LABELS: Record<LabId, string> = {
+  'lab-ap': 'LAB AP',
+  'lab-b': 'LAB B',
+  'lab-c': 'LAB C',
+  'lab-d': 'LAB D',
+};
 
 export type PresensiSessionDocument = LiveSession & Partial<Sprint3SessionFields>;
 
@@ -30,7 +36,7 @@ export function buildPresensiSessionMeta(
   const labId = snapshot?.labId ?? session.labId ?? null;
   const labName =
     lab?.name ??
-    (labId && Object.hasOwn(REQUIRED_LABS, labId) ? REQUIRED_LABS[labId] : null) ??
+    (labId && Object.hasOwn(LAB_LABELS, labId) ? LAB_LABELS[labId] : null) ??
     session.labRoom;
   const radiusMeters =
     typeof snapshot?.radiusMeters === 'number' && Number.isFinite(snapshot.radiusMeters) && snapshot.radiusMeters > 0
