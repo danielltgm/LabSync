@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { EmptyState } from '@/components/common/EmptyState';
 import { SessionSheet } from '@/components/common/SessionSheet';
 import { Button, Eyebrow, LoadingLine, MetaList, MetaRow, Notice, Panel, Rule } from '@/components/common/ui';
+import { AttendanceStatusCard } from '@/components/presensi/AttendanceStatusCard';
 import {
   LabSyncColors as colors,
   LabSyncLayout as layout,
@@ -12,13 +13,21 @@ import {
   LabSyncTypography as type,
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
+import { usePresensiRealtime } from '@/hooks/use-presensi-realtime';
 import { usePresensiSessionDetail } from '@/hooks/use-presensi-session-detail';
+import { buildPresensiSessionMeta } from '@/services/attendance/session-view';
 
 export default function PresensiSessionScreen() {
   const params = useLocalSearchParams<{ id: string | string[] }>();
   const sessionId = typeof params.id === 'string' ? params.id : undefined;
   const { activeUser } = useLabSync();
   const detail = usePresensiSessionDetail(sessionId);
+  const realtime = usePresensiRealtime(
+    detail.status === 'ready' ? sessionId : undefined,
+    activeUser.role === 'PRAKTISAN' ? activeUser.id : undefined,
+  );
+  const liveSession = realtime.session ?? detail.session;
+  const liveMeta = liveSession ? buildPresensiSessionMeta(liveSession, detail.lab) : detail.meta;
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -46,25 +55,28 @@ export default function PresensiSessionScreen() {
             title={detail.status === 'forbidden' ? 'Akses ditolak' : 'Sesi tidak ditemukan'}
             description={detail.errorMessage ?? 'Periksa kembali daftar jadwal praktikum Anda.'}
           />
-        ) : detail.status === 'error' || !detail.session || !detail.meta ? (
+        ) : detail.status === 'error' || !liveSession || !liveMeta ? (
           <Notice tone="danger" message={detail.errorMessage ?? 'Gagal memuat sesi.'} alert>
             <Button compact label="Muat ulang" onPress={detail.retry} />
           </Notice>
         ) : (
           <View style={styles.stack}>
-            <SessionSheet session={detail.session}>
+            <SessionSheet session={liveSession}>
               <MetaList>
-                <MetaRow label="Lokasi Lab" value={detail.meta.labName} />
+                <MetaRow label="Lokasi Lab" value={liveMeta.labName} />
                 <MetaRow
                   label="Radius Presensi"
-                  value={detail.meta.radiusMeters ? `${detail.meta.radiusMeters} meter` : 'Belum dikonfigurasi'}
+                  value={liveMeta.radiusMeters ? `${liveMeta.radiusMeters} meter` : 'Belum dikonfigurasi'}
                   mono
                 />
                 <MetaRow label="Akun Praktikan" value={`${activeUser.name} (${activeUser.identifier})`} />
               </MetaList>
             </SessionSheet>
 
-            {!detail.meta.isGeotagReady ? (
+            {realtime.error ? <Notice tone="warning" message={realtime.error} /> : null}
+            {realtime.availability ? <AttendanceStatusCard availability={realtime.availability} /> : null}
+
+            {!liveMeta.isGeotagReady ? (
               <Panel>
                 <Notice
                   tone="warning"
