@@ -6,7 +6,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { SessionSheet } from '@/components/common/SessionSheet';
 import { Button, Eyebrow, LoadingLine, MetaList, MetaRow, Notice, Panel, Rule } from '@/components/common/ui';
 import { AttendanceStatusCard } from '@/components/presensi/AttendanceStatusCard';
-import { CameraPermissionGate } from '@/components/presensi/CameraPermissionGate';
+import { QrScannerPanel } from '@/components/presensi/QrScannerPanel';
 import {
   LabSyncColors as colors,
   LabSyncLayout as layout,
@@ -17,6 +17,7 @@ import { useLabSync } from '@/context/LabSyncContext';
 import { useCameraGate } from '@/hooks/use-camera-gate';
 import { usePresensiRealtime } from '@/hooks/use-presensi-realtime';
 import { usePresensiSessionDetail } from '@/hooks/use-presensi-session-detail';
+import { useQrScanner } from '@/hooks/use-qr-scanner';
 import { buildPresensiSessionMeta } from '@/services/attendance/session-view';
 
 export default function PresensiSessionScreen() {
@@ -32,6 +33,7 @@ export default function PresensiSessionScreen() {
   const liveMeta = liveSession ? buildPresensiSessionMeta(liveSession, detail.lab) : detail.meta;
   const canAttend = Boolean(realtime.availability?.canScan);
   const cameraGate = useCameraGate(canAttend);
+  const qrScanner = useQrScanner(sessionId ?? '');
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -79,7 +81,9 @@ export default function PresensiSessionScreen() {
 
             {realtime.error ? <Notice tone="warning" message={realtime.error} /> : null}
             {realtime.availability ? <AttendanceStatusCard availability={realtime.availability} /> : null}
-            {canAttend ? <CameraPermissionGate gate={cameraGate} disabled={!canAttend} /> : null}
+            {canAttend ? (
+              <QrScannerPanel cameraGate={cameraGate} scanner={qrScanner} disabled={!canAttend} />
+            ) : null}
 
             {!liveMeta.isGeotagReady ? (
               <Panel>
