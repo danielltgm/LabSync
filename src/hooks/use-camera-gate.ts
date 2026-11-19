@@ -40,10 +40,6 @@ export function useCameraGate(enabled: boolean): CameraGateController {
     return () => sub.remove();
   }, []);
 
-  useEffect(() => {
-    if (!enabled) setScanRequested(false);
-  }, [enabled]);
-
   const startScan = useCallback(async () => {
     if (!enabled || Platform.OS === 'web') return;
     setScanRequested(true);

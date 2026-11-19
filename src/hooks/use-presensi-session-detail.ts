@@ -20,36 +20,39 @@ export interface PresensiSessionDetailState {
   retry: () => void;
 }
 
+interface DetailSnapshot {
+  key: string;
+  attempt: number;
+  status: SessionDetailStatus;
+  session: PresensiSessionDocument | null;
+  lab: LabConfiguration | null;
+  meta: PresensiSessionMeta | null;
+  errorMessage: string | null;
+}
+
 export function usePresensiSessionDetail(sessionId?: string): PresensiSessionDetailState {
   const [attempt, setAttempt] = useState(0);
-  const [state, setState] = useState<Omit<PresensiSessionDetailState, 'retry'>>({
-    status: sessionId ? 'loading' : 'not-found',
-    session: null,
-    lab: null,
-    meta: null,
-    errorMessage: sessionId ? null : 'ID sesi tidak ditemukan.',
-  });
+  const [snapshot, setSnapshot] = useState<DetailSnapshot | null>(null);
 
   useEffect(() => {
-    if (!sessionId) {
-      setState({ status: 'not-found', session: null, lab: null, meta: null, errorMessage: 'ID sesi tidak ditemukan.' });
-      return;
-    }
-    if (!firebase) {
-      setState({ status: 'error', session: null, lab: null, meta: null, errorMessage: 'Layanan Firebase belum siap.' });
-      return;
-    }
-
+    if (!sessionId || !firebase) return;
     const { db } = firebase;
     let active = true;
-    setState((prev) => ({ ...prev, status: 'loading', errorMessage: null }));
 
     void (async () => {
       try {
         const snap = await getDoc(doc(db, 'sessions', sessionId));
         if (!active) return;
         if (!snap.exists()) {
-          setState({ status: 'not-found', session: null, lab: null, meta: null, errorMessage: 'Sesi praktikum tidak ditemukan.' });
+          setSnapshot({
+            key: sessionId,
+            attempt,
+            status: 'not-found',
+            session: null,
+            lab: null,
+            meta: null,
+            errorMessage: 'Sesi praktikum tidak ditemukan.',
+          });
           return;
         }
         const session = { ...(snap.data() as Omit<PresensiSessionDocument, 'id'>), id: snap.id };
@@ -66,7 +69,9 @@ export function usePresensiSessionDetail(sessionId?: string): PresensiSessionDet
           }
         }
         if (!active) return;
-        setState({
+        setSnapshot({
+          key: sessionId,
+          attempt,
           status: 'ready',
           session,
           lab,
@@ -77,7 +82,9 @@ export function usePresensiSessionDetail(sessionId?: string): PresensiSessionDet
         if (!active) return;
         const code = typeof err === 'object' && err !== null && 'code' in err ? String((err as { code?: unknown }).code) : '';
         if (code === 'permission-denied') {
-          setState({
+          setSnapshot({
+            key: sessionId,
+            attempt,
             status: 'forbidden',
             session: null,
             lab: null,
@@ -86,7 +93,9 @@ export function usePresensiSessionDetail(sessionId?: string): PresensiSessionDet
           });
           return;
         }
-        setState({
+        setSnapshot({
+          key: sessionId,
+          attempt,
           status: 'error',
           session: null,
           lab: null,
@@ -101,5 +110,22 @@ export function usePresensiSessionDetail(sessionId?: string): PresensiSessionDet
     };
   }, [sessionId, attempt]);
 
-  return { ...state, retry: () => setAttempt((n) => n + 1) };
+  const retry = () => setAttempt((n) => n + 1);
+  if (!sessionId) {
+    return { status: 'not-found', session: null, lab: null, meta: null, errorMessage: 'ID sesi tidak ditemukan.', retry };
+  }
+  if (!firebase) {
+    return { status: 'error', session: null, lab: null, meta: null, errorMessage: 'Layanan Firebase belum siap.', retry };
+  }
+  if (snapshot && snapshot.key === sessionId && snapshot.attempt === attempt) {
+    return {
+      status: snapshot.status,
+      session: snapshot.session,
+      lab: snapshot.lab,
+      meta: snapshot.meta,
+      errorMessage: snapshot.errorMessage,
+      retry,
+    };
+  }
+  return { status: 'loading', session: null, lab: null, meta: null, errorMessage: null, retry };
 }

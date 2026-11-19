@@ -19,51 +19,55 @@ export interface PresensiRealtimeState {
   error: string | null;
 }
 
+interface RealtimeSnapshot {
+  key: string;
+  session: PresensiSessionDocument | null;
+  ownAttendance: LiveAttendanceRecord | null;
+  sessionLoaded: boolean;
+  attendanceLoaded: boolean;
+  error: string | null;
+}
+
 export function usePresensiRealtime(sessionId?: string, studentUid?: string): PresensiRealtimeState {
-  const [session, setSession] = useState<PresensiSessionDocument | null>(null);
-  const [ownAttendance, setOwnAttendance] = useState<LiveAttendanceRecord | null>(null);
-  const [sessionLoaded, setSessionLoaded] = useState(false);
-  const [attendanceLoaded, setAttendanceLoaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const key = sessionId && studentUid ? `${sessionId}__${studentUid}` : '';
+  const [snapshot, setSnapshot] = useState<RealtimeSnapshot | null>(null);
 
   useEffect(() => {
-    setSession(null);
-    setOwnAttendance(null);
-    setSessionLoaded(false);
-    setAttendanceLoaded(false);
-    setError(null);
-
-    if (!firebase || !sessionId || !studentUid) return;
+    if (!firebase || !sessionId || !studentUid || !key) return;
     const { db } = firebase;
     let active = true;
+
+    const patch = (updater: (prev: RealtimeSnapshot) => RealtimeSnapshot) => {
+      if (!active) return;
+      setSnapshot((current) => {
+        const base: RealtimeSnapshot =
+          current && current.key === key
+            ? current
+            : { key, session: null, ownAttendance: null, sessionLoaded: false, attendanceLoaded: false, error: null };
+        return updater(base);
+      });
+    };
 
     const stopSession = onSnapshot(
       doc(db, 'sessions', sessionId),
       (snap) => {
-        if (!active) return;
-        setSession(snap.exists() ? { ...(snap.data() as Omit<PresensiSessionDocument, 'id'>), id: snap.id } : null);
-        setSessionLoaded(true);
+        const nextSession = snap.exists()
+          ? { ...(snap.data() as Omit<PresensiSessionDocument, 'id'>), id: snap.id }
+          : null;
+        patch((prev) => ({ ...prev, session: nextSession, sessionLoaded: true }));
       },
-      () => {
-        if (!active) return;
-        setSessionLoaded(true);
-        setError('Pembaruan realtime sesi terganggu.');
-      },
+      () => patch((prev) => ({ ...prev, sessionLoaded: true, error: 'Pembaruan realtime sesi terganggu.' })),
     );
 
-    const attendanceId = `${sessionId}__${studentUid}`;
     const stopAttendance = onSnapshot(
-      doc(db, 'attendance', attendanceId),
+      doc(db, 'attendance', key),
       (snap) => {
-        if (!active) return;
-        setOwnAttendance(snap.exists() ? toAttendanceRecord(snap.id, snap.data() as AttendanceDocument) : null);
-        setAttendanceLoaded(true);
+        const nextAttendance = snap.exists()
+          ? toAttendanceRecord(snap.id, snap.data() as AttendanceDocument)
+          : null;
+        patch((prev) => ({ ...prev, ownAttendance: nextAttendance, attendanceLoaded: true }));
       },
-      () => {
-        if (!active) return;
-        setAttendanceLoaded(true);
-        setError('Status presensi akun gagal disinkronkan.');
-      },
+      () => patch((prev) => ({ ...prev, attendanceLoaded: true, error: 'Status presensi akun gagal disinkronkan.' })),
     );
 
     return () => {
@@ -71,14 +75,18 @@ export function usePresensiRealtime(sessionId?: string, studentUid?: string): Pr
       stopSession();
       stopAttendance();
     };
-  }, [sessionId, studentUid]);
+  }, [key, sessionId, studentUid]);
 
+  const current = snapshot && snapshot.key === key ? snapshot : null;
+  const session = current?.session ?? null;
+  const ownAttendance = current?.ownAttendance ?? null;
   const availability = session ? resolvePresensiAvailability(session.status, ownAttendance) : null;
+
   return {
     session,
     ownAttendance,
     availability,
-    loading: Boolean(sessionId && studentUid) && (!sessionLoaded || !attendanceLoaded),
-    error,
+    loading: Boolean(key) && (!current?.sessionLoaded || !current?.attendanceLoaded),
+    error: current?.error ?? null,
   };
 }

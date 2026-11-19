@@ -96,7 +96,7 @@ export function useDeviceLocation(
       }
 
       const raw = await withTimeout(
-        Location.getCurrentPositionAsync({ accuracy: Location.LocationAccuracy.High }),
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
         LOCATION_TIMEOUT_MS,
       );
       if (!mountedRef.current) return null;
