@@ -4,8 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/common/EmptyState';
 import { SessionSheet } from '@/components/common/SessionSheet';
-import { Button, Eyebrow, LoadingLine, MetaList, MetaRow, Notice, Panel, Rule } from '@/components/common/ui';
+import { Button, Eyebrow, LoadingLine, MetaList, MetaRow, Notice, Rule } from '@/components/common/ui';
 import { AttendanceStatusCard } from '@/components/presensi/AttendanceStatusCard';
+import { LocationHintBanner } from '@/components/presensi/LocationHintBanner';
 import { LocationStatusCard } from '@/components/presensi/LocationStatusCard';
 import { QrScannerPanel } from '@/components/presensi/QrScannerPanel';
 import {
@@ -17,6 +18,7 @@ import {
 import { useLabSync } from '@/context/LabSyncContext';
 import { useCameraGate } from '@/hooks/use-camera-gate';
 import { useDeviceLocation } from '@/hooks/use-device-location';
+import { useLocationHint } from '@/hooks/use-location-hint';
 import { usePresensiRealtime } from '@/hooks/use-presensi-realtime';
 import { usePresensiSessionDetail } from '@/hooks/use-presensi-session-detail';
 import { useQrScanner } from '@/hooks/use-qr-scanner';
@@ -37,6 +39,7 @@ export default function PresensiSessionScreen() {
   const cameraGate = useCameraGate(canAttend);
   const qrScanner = useQrScanner(sessionId ?? '');
   const deviceLocation = useDeviceLocation();
+  const locationHint = useLocationHint(deviceLocation.fix, liveMeta, detail.lab);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
 
@@ -88,16 +91,8 @@ export default function PresensiSessionScreen() {
               <>
                 <QrScannerPanel cameraGate={cameraGate} scanner={qrScanner} disabled={!canAttend} />
                 <LocationStatusCard location={deviceLocation} disabled={!canAttend} />
+                {locationHint ? <LocationHintBanner hint={locationHint} /> : null}
               </>
-            ) : null}
-
-            {!liveMeta.isGeotagReady ? (
-              <Panel>
-                <Notice
-                  tone="warning"
-                  message="Koordinat lab atau radius sesi belum dikonfigurasi. Hubungi asisten/PM sebelum presensi."
-                />
-              </Panel>
             ) : null}
           </View>
         )}
