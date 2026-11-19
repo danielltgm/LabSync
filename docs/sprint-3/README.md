@@ -23,6 +23,8 @@ FCM wajib digunakan untuk push berbasis peristiwa: sesi dibuka, jadwal diubah, i
 
 Urutan Yudha: Maps terlebih dahulu agar beban Maps dan notifikasi tidak masuk satu PR besar. PM membantu konfigurasi proyek, build, kredensial, dan pengujian dua akun; implementasi Maps dan FCM tetap tanggung jawab Yudha.
 
+Setiap programmer mencatat ID SRS di commit atau PR. Setelah fitur terintegrasi, Zufar mengerjakan overhaul UI lintas layar dalam satu commit terpisah. Catatan evaluasi dan alur commit selengkapnya ada di [Evaluasi Sprint 2 dan tindak lanjut Sprint 3](evaluasi-sprint-2.md).
+
 ## Pemetaan soal ke SRS
 
 | Kebutuhan soal | Penanggung jawab | Acuan verifikasi |
@@ -50,7 +52,7 @@ Direktori berikut adalah rencana lokasi implementasi, bukan klaim sudah tersedia
 | `src/services/notifications/`, `functions/` trigger notifikasi | Yudha | Runtime functions terpisah dan exports modular; baca kontrak event Daniel |
 | `src/app/_layout.tsx`, `src/app/index.tsx`, `src/context/LabSyncContext.tsx`, `src/firebase/queries.ts` | Bersama, dikoordinasi Hafidh | Satu PR integrasi aktif per file; jangan salin file utuh dari branch lama |
 
-Hindari merombak UI Sprint 2. Perubahan tampilan dibatasi halaman/aksi baru yang diperlukan. Enum lama `ASISTEN`/`PRAKTISAN`, status sesi, identitas UID, ID presensi `${sessionId}__${uid}`, serta query rekap tetap kompatibel.
+Perubahan UI dalam PR programmer mencakup layar, komponen, dan aksi yang dibutuhkan SRS masing-masing. Overhaul UI lintas layar menjadi tanggung jawab Zufar setelah integrasi fitur. Untuk PR fitur, ikuti kontrak yang berlaku untuk enum `ASISTEN`/`PRAKTISAN`, status sesi, identitas UID, ID presensi `${sessionId}__${uid}`, dan query rekap.
 
 ## Urutan kerja dan merge
 
@@ -58,7 +60,8 @@ Hindari merombak UI Sprint 2. Perubahan tampilan dibatasi halaman/aksi baru yang
 2. Daniel menetapkan kontrak server + skema lab/sesi + aturan akses; Agiel dan Yudha boleh mulai komponen memakai fixture bertanda sintetis. Fixture tidak membuktikan integrasi.
 3. Daniel merilis endpoint dan perubahan rules bersama jalur presensi baru; Agiel mengganti entry lama. Jangan deploy rules penutup tanpa client pengganti, atau client baru tanpa server.
 4. Maps diintegrasikan memakai proyeksi aktivitas aman; Yudha kemudian menyelesaikan FCM dengan proyek/perangkat yang disepakati.
-5. Hafidh memeriksa migrasi data lama, lint/typecheck, tes rules/server, tiga alur demo perangkat, dan bukti dua akun sebelum merge final.
+5. Hafidh memeriksa integrasi fitur, termasuk migrasi data lama, lint/typecheck, tes rules/server, dan bukti dua akun.
+6. Zufar menggabungkan overhaul UI dalam satu commit terpisah setelah integrasi fitur, lalu tim menguji ulang tiga alur demo pada build perangkat.
 
 Setiap PR menyertakan SRS ID, perubahan perilaku, cara uji beserta hasil aktual, screenshot untuk layar baru, dan keterbatasan. Sebelum review, `git fetch origin` lalu integrasikan `origin/main` memakai merge atau rebase sesuai kebiasaan tim. Periksa konflik bersama owner; jangan memilih seluruh versi sendiri secara otomatis. Tidak ada force push ke `main`.
 
