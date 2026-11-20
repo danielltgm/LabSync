@@ -13,6 +13,7 @@ import {
   validateSessionConfiguration,
 } from '@/server/attendance/legacy-adapter';
 import { calculateSessionTimestamps } from '@/server/attendance/schedule-utils';
+import type { IssueChallengeResult } from '@/server/attendance/qr-challenge';
 import { getLabConfiguration, isValidLabId } from '@/server/labs/lab-service';
 import type { SessionDocument } from '@/types/sprint2';
 import type {
@@ -341,6 +342,138 @@ export async function openSessionWithConfig(
     return { success: true, sessionId, attendanceConfig };
   } catch (err: unknown) {
     const message = (err as Error)?.message ?? 'Gagal membuka sesi praktikum.';
+    return { success: false, error: message };
+  }
+}
+
+export interface RequestChallengeResponse {
+  success: boolean;
+  data?: IssueChallengeResult;
+  error?: string;
+  errorCode?: string;
+}
+
+/**
+ * Meminta tantangan QR presensi baru dari server untuk sesi terbuka (D-03).
+ */
+export async function requestAttendanceChallenge(
+  sessionId: string
+): Promise<RequestChallengeResponse> {
+  const cleanSessionId = sessionId?.trim();
+  if (!cleanSessionId) {
+    return { success: false, error: 'ID sesi tidak valid.' };
+  }
+
+  const currentUser = firebase?.auth.currentUser;
+  if (!currentUser) {
+    return {
+      success: false,
+      error: 'Silakan login terlebih dahulu sebagai asisten.',
+      errorCode: 'AUTH_REQUIRED',
+    };
+  }
+
+  try {
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch('/api/attendance/challenges', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ sessionId: cleanSessionId }),
+    });
+
+    const body = await response.json();
+    if (!response.ok) {
+      const code = body?.error?.code ?? 'SERVER_ERROR';
+      const message = body?.error?.message ?? 'Gagal meminta QR presensi dari server.';
+      return { success: false, error: message, errorCode: code };
+    }
+
+    return { success: true, data: body as IssueChallengeResult };
+  } catch (err: unknown) {
+    const message = (err as Error)?.message ?? 'Gagal terhubung ke endpoint presensi server.';
+    return { success: false, error: message, errorCode: 'NETWORK_ERROR' };
+  }
+}
+
+/**
+ * Menutup sesi praktikum (DIBUKA -> SELESAI) secara otoritatif (D-02, D-03).
+ * Versi client-only — TIDAK mencabut challenge QR di server.
+ * @deprecated Gunakan closeSessionViaServer untuk menutup sesi + revoke challenge.
+ */
+export async function closeSessionWithRevoke(
+  sessionId: string
+): Promise<SessionServiceResult> {
+  if (!sessionId) {
+    return { success: false, error: 'ID sesi tidak valid.' };
+  }
+  if (!firebase) {
+    return { success: false, error: 'Koneksi database tidak tersedia.' };
+  }
+
+  try {
+    const sessionRef = doc(firebase.db, 'sessions', sessionId);
+    await runTransaction(firebase.db, async (transaction) => {
+      const snap = await transaction.get(sessionRef);
+      if (!snap.exists()) throw new Error('Sesi praktikum tidak ditemukan.');
+      const current = snap.data() as ExtendedSessionDocument;
+      if (current.status !== 'DIBUKA') {
+        throw new Error(
+          `Sesi praktikum berstatus "${current.status}", hanya sesi DIBUKA yang dapat ditutup.`
+        );
+      }
+      transaction.update(sessionRef, { status: 'SELESAI' });
+    });
+
+    return { success: true, sessionId };
+  } catch (err: unknown) {
+    const message = (err as Error)?.message ?? 'Gagal menutup sesi praktikum.';
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Menutup sesi praktikum melalui server API (D-03).
+ * Server mengganti status DIBUKA → SELESAI dan mencabut semua challenge QR aktif.
+ */
+export async function closeSessionViaServer(
+  sessionId: string
+): Promise<SessionServiceResult> {
+  const cleanSessionId = sessionId?.trim();
+  if (!cleanSessionId) {
+    return { success: false, error: 'ID sesi tidak valid.' };
+  }
+
+  const currentUser = firebase?.auth.currentUser;
+  if (!currentUser) {
+    return {
+      success: false,
+      error: 'Silakan login terlebih dahulu sebagai asisten.',
+    };
+  }
+
+  try {
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch('/api/attendance/close', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ sessionId: cleanSessionId }),
+    });
+
+    const body = await response.json();
+    if (!response.ok) {
+      const message = body?.error?.message ?? 'Gagal menutup sesi praktikum.';
+      return { success: false, error: message };
+    }
+
+    return { success: true, sessionId: cleanSessionId };
+  } catch (err: unknown) {
+    const message = (err as Error)?.message ?? 'Gagal terhubung ke server untuk menutup sesi.';
     return { success: false, error: message };
   }
 }

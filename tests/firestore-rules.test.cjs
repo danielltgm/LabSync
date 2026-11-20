@@ -525,3 +525,35 @@ test('S3-D-02: session rules enforce valid labId and positive radius on TERJADWA
   }));
 });
 
+test('S3-D-03: attendanceChallenges collection is strictly server-only (client read and write rejected)', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'attendanceChallenges/challenge-123'), {
+      challengeId: 'challenge-123',
+      sessionId: 'mobile-1',
+      tokenHash: 'samplehash',
+      status: 'active',
+      createdAt: '2026-11-20T12:00:00.000Z',
+      expiresAt: '2026-11-20T12:01:00.000Z',
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // All client reads fail
+  await assertFails(getDoc(doc(student, 'attendanceChallenges/challenge-123')));
+  await assertFails(getDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
+  await assertFails(getDoc(doc(unauthed, 'attendanceChallenges/challenge-123')));
+
+  // All client writes fail
+  await assertFails(setDoc(doc(assistant, 'attendanceChallenges/fake-challenge'), {
+    challengeId: 'fake-challenge',
+    sessionId: 'mobile-1',
+    tokenHash: 'fakehash',
+  }));
+  await assertFails(updateDoc(doc(assistant, 'attendanceChallenges/challenge-123'), { status: 'revoked' }));
+  await assertFails(deleteDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
+});
+
+

@@ -169,6 +169,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /attendanceChallenges/{challengeId} {
+      allow read, write: if false;
+    }
+
     // Scope missing-document reads for check-in and leave transactions.
     function canReadMissingOwnRecord(id) {
       return hasRole('PRAKTISAN') && request.auth.uid.matches('^[A-Za-z0-9_-]+$') &&
