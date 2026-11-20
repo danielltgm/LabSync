@@ -452,3 +452,108 @@ test('production transaction prevents concurrent reviews from overwriting the fi
   assert.equal(after.decision, original.decision);
   assert.ok(after.reviewedAt.isEqual(original.reviewedAt));
 });
+
+test('S3-D-01: authenticated users can read labs but client writes are forbidden', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'labs/lab-ap'), {
+      id: 'lab-ap', name: 'LAB AP', coordinates: null, enabled: false, configVersion: 1,
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // Authenticated read succeeds
+  await assertSucceeds(getDoc(doc(student, 'labs/lab-ap')));
+  await assertSucceeds(getDoc(doc(assistant, 'labs/lab-ap')));
+
+  // Unauthenticated read fails
+  await assertFails(getDoc(doc(unauthed, 'labs/lab-ap')));
+
+  // Client write fails for all clients
+  await assertFails(setDoc(doc(assistant, 'labs/lab-b'), {
+    id: 'lab-b', name: 'LAB B', coordinates: null, enabled: false, configVersion: 1,
+  }));
+  await assertFails(updateDoc(doc(assistant, 'labs/lab-ap'), { enabled: true }));
+  await assertFails(deleteDoc(doc(assistant, 'labs/lab-ap')));
+});
+
+test('S3-D-02: session rules enforce valid labId and positive radius on TERJADWAL and open with config', async () => {
+  const assistant = account('assistant');
+
+  const baseSession = {
+    classId: 'mobile', courseName: 'Pemrograman Mobile', className: 'IF-3A',
+    labRoom: 'Lab RPL', date: '2026-11-25', startTime: '10:00', endTime: '12:00',
+    assistantName: 'Asisten Demo', status: 'TERJADWAL',
+  };
+
+  // Valid session creation with Sprint 3 fields
+  await assertSucceeds(setDoc(doc(assistant, 'sessions/s3-session-valid'), {
+    ...baseSession,
+    labId: 'lab-ap',
+    radiusMeters: 50,
+    scheduleRevision: 1,
+    startsAt: Timestamp.fromMillis(Date.now()),
+    endsAt: Timestamp.fromMillis(Date.now() + 7200000),
+  }));
+
+  // Rejects invalid labId
+  await assertFails(setDoc(doc(assistant, 'sessions/s3-session-bad-lab'), {
+    ...baseSession,
+    labId: 'lab-unknown',
+    radiusMeters: 50,
+  }));
+
+  // Rejects non-positive radius
+  await assertFails(setDoc(doc(assistant, 'sessions/s3-session-zero-radius'), {
+    ...baseSession,
+    labId: 'lab-ap',
+    radiusMeters: 0,
+  }));
+
+  // Assistant can transition TERJADWAL -> DIBUKA with attendanceConfig snapshot
+  await assertSucceeds(updateDoc(doc(assistant, 'sessions/s3-session-valid'), {
+    status: 'DIBUKA',
+    attendanceConfig: {
+      labId: 'lab-ap',
+      coordinates: { latitude: -6.2, longitude: 106.8 },
+      labConfigVersion: 1,
+      radiusMeters: 50,
+      policyVersion: 's3-v1',
+    },
+  }));
+});
+
+test('S3-D-03: attendanceChallenges collection is strictly server-only (client read and write rejected)', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'attendanceChallenges/challenge-123'), {
+      challengeId: 'challenge-123',
+      sessionId: 'mobile-1',
+      tokenHash: 'samplehash',
+      status: 'active',
+      createdAt: '2026-11-20T12:00:00.000Z',
+      expiresAt: '2026-11-20T12:01:00.000Z',
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // All client reads fail
+  await assertFails(getDoc(doc(student, 'attendanceChallenges/challenge-123')));
+  await assertFails(getDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
+  await assertFails(getDoc(doc(unauthed, 'attendanceChallenges/challenge-123')));
+
+  // All client writes fail
+  await assertFails(setDoc(doc(assistant, 'attendanceChallenges/fake-challenge'), {
+    challengeId: 'fake-challenge',
+    sessionId: 'mobile-1',
+    tokenHash: 'fakehash',
+  }));
+  await assertFails(updateDoc(doc(assistant, 'attendanceChallenges/challenge-123'), { status: 'revoked' }));
+  await assertFails(deleteDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
+});
+
+
