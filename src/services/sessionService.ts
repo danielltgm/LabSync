@@ -18,6 +18,9 @@ import { getLabConfiguration, isValidLabId } from '@/server/labs/lab-service';
 import type { SessionDocument } from '@/types/sprint2';
 import type {
   AttendanceConfigSnapshot,
+  CheckInErrorCode,
+  CheckInRequest,
+  CheckInResult,
   LabConfiguration,
   LabId,
   Sprint3SessionFields,
@@ -477,3 +480,63 @@ export async function closeSessionViaServer(
     return { success: false, error: message };
   }
 }
+
+export interface SubmitCheckInResponse {
+  success: boolean;
+  data?: CheckInResult;
+  error?: string;
+  errorCode?: CheckInErrorCode | string;
+}
+
+/**
+ * Mengirimkan data presensi praktikan ke server (D-04, D-05, D-06).
+ * Memeriksa token login, scan QR, dan koordinat lokasi GPS praktikan.
+ */
+export async function submitAttendanceCheckIn(
+  payload: CheckInRequest
+): Promise<SubmitCheckInResponse> {
+  const currentUser = firebase?.auth.currentUser;
+  if (!currentUser) {
+    return {
+      success: false,
+      error: 'Silakan login terlebih dahulu sebagai praktikan.',
+      errorCode: 'AUTH_REQUIRED',
+    };
+  }
+
+  try {
+    const idToken = await currentUser.getIdToken();
+    const response = await fetch('/api/attendance/check-in', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const body = await response.json();
+    if (!response.ok) {
+      const code = (body?.error?.code as CheckInErrorCode) ?? 'SERVER_ERROR';
+      const message = body?.error?.message ?? 'Gagal mencatat presensi praktikum.';
+      return {
+        success: false,
+        error: message,
+        errorCode: code,
+      };
+    }
+
+    return {
+      success: true,
+      data: body as CheckInResult,
+    };
+  } catch (err: unknown) {
+    const message = (err as Error)?.message ?? 'Gagal terhubung ke endpoint presensi server.';
+    return {
+      success: false,
+      error: message,
+      errorCode: 'NETWORK_ERROR',
+    };
+  }
+}
+
