@@ -10,6 +10,9 @@ import {
 } from 'firebase/firestore';
 
 import type { ClassDocument, SessionDocument, UserDocument } from '@/types/sprint2';
+import type { Sprint3SessionFields } from '@/types/sprint3';
+
+export type ExtendedSessionDocument = SessionDocument & Partial<Sprint3SessionFields>;
 
 /**
  * Membuat kelas baru pada koleksi `classes`.
@@ -83,9 +86,9 @@ export async function unenrollStudentMutation(
  */
 export async function createSessionMutation(
   db: Firestore,
-  data: SessionDocument
+  data: ExtendedSessionDocument
 ): Promise<string> {
-  const ref = await addDoc(collection(db, 'sessions'), {
+  const payload: Record<string, unknown> = {
     classId: data.classId,
     courseName: data.courseName.trim(),
     className: data.className.trim(),
@@ -95,7 +98,15 @@ export async function createSessionMutation(
     endTime: data.endTime.trim(),
     assistantName: data.assistantName.trim(),
     status: 'TERJADWAL',
-  });
+  };
+  if (data.labId) payload.labId = data.labId;
+  if (data.radiusMeters !== undefined) payload.radiusMeters = data.radiusMeters;
+  if (data.scheduleRevision !== undefined) payload.scheduleRevision = data.scheduleRevision;
+  if (data.startsAt) payload.startsAt = data.startsAt;
+  if (data.endsAt) payload.endsAt = data.endsAt;
+  if (data.attendanceConfig) payload.attendanceConfig = data.attendanceConfig;
+
+  const ref = await addDoc(collection(db, 'sessions'), payload);
   return ref.id;
 }
 
@@ -117,7 +128,7 @@ export async function deleteSessionMutation(
 export async function updateSessionMutation(
   db: Firestore,
   sessionId: string,
-  data: Partial<Omit<SessionDocument, 'status' | 'classId'>>
+  data: Partial<Omit<SessionDocument, 'status' | 'classId'>> & Partial<Sprint3SessionFields>
 ): Promise<void> {
   const ref = doc(db, 'sessions', sessionId);
   await updateDoc(ref, data);
