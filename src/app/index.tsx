@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,8 +7,6 @@ import { SessionCard } from '@/components/asisten/SessionCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ActionRow, Button, Eyebrow, LoadingLine, Notice, Rule } from '@/components/common/ui';
 import { Wordmark } from '@/components/common/Wordmark';
-import { AttendanceFeedbackModal, findExistingAttendance } from '@/components/praktikan/AttendanceFeedbackModal';
-import { AttendanceFormModal } from '@/components/praktikan/AttendanceFormModal';
 import { LeaveRequestModal } from '@/components/praktikan/LeaveRequestModal';
 import { SessionPraktikanCard } from '@/components/praktikan/SessionPraktikanCard';
 import {
@@ -20,13 +18,12 @@ import {
 } from '@/constants/labsync-theme';
 import { useLabSync } from '@/context/LabSyncContext';
 import { firebase } from '@/firebase/client';
+import { submitLeaveRequest } from '@/firebase/queries';
 import { requestLeaveClassification } from '@/firebase/request-leave-classification';
-import { submitAttendance, submitLeaveRequest } from '@/firebase/queries';
 import { useAttendance } from '@/hooks/use-attendance';
-import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
-import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
-import type { Session } from '@/types/session';
 import { useLeaveRequests } from '@/hooks/use-leave-requests';
+import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
+import { hasSessionAttendance } from '@/services/attendance/recap-sync';
 import type { LiveSession } from '@/types/sprint2';
 
 export default function HomeScreen() {
@@ -35,34 +32,6 @@ export default function HomeScreen() {
   const { sessions, activeUser, loadingSessions, error, retrySessions, openSession, closeSession, logout } = useLabSync();
   const isAssistant = activeUser.role === 'ASISTEN';
   const attendance = useAttendance(isAssistant ? undefined : activeUser.id);
-  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const [submittingAttendance, setSubmittingAttendance] = useState(false);
-  const [feedback, setFeedback] = useState<{ courseName: string; record: AttendanceRecord; isDuplicate: boolean } | null>(null);
-  const [submitError, setSubmitError] = useState('');
-
-  const handleSubmitAttendance = (payload: AttendancePayload) => {
-    const courseName = selectedSession?.courseName ?? '';
-    const existing = findExistingAttendance(attendance.records, payload.sessionId, payload.studentId);
-    if (existing) {
-      setSelectedSession(null);
-      setFeedback({ courseName, record: existing, isDuplicate: true });
-      return;
-    }
-    if (!firebase || submittingAttendance) return;
-    setSubmittingAttendance(true);
-    setSubmitError('');
-    void submitAttendance(firebase.db, activeUser.id, payload)
-      .then((result) => {
-        setSelectedSession(null);
-        setFeedback({ courseName, record: result.record, isDuplicate: result.isDuplicate });
-      })
-      .catch(() => {
-        setSelectedSession(null);
-        setSubmitError('Presensi gagal dikirim. Pastikan sesi masih dibuka dan koneksi stabil.');
-      })
-      .finally(() => setSubmittingAttendance(false));
-  };
-
   const leaveRequests = useLeaveRequests(isAssistant ? undefined : activeUser.id);
   const [selectedLeaveSession, setSelectedLeaveSession] = useState<LiveSession | null>(null);
 
@@ -84,7 +53,7 @@ export default function HomeScreen() {
   };
 
   const activeSessionCount = sessions.filter((session) => session.status === 'DIBUKA').length;
-  const activeBannerError = error || attendance.error || leaveRequests.error || submitError;
+  const activeBannerError = error || attendance.error || leaveRequests.error;
 
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={styles.screen}>
@@ -176,10 +145,9 @@ export default function HomeScreen() {
             ) : (
               <SessionPraktikanCard
                 session={item}
-                isAttended={attendance.records.some((record) => record.sessionId === item.id)}
+                isAttended={hasSessionAttendance(attendance.records, item.id, activeUser.id)}
                 onPressAttendance={(session) => {
-                  setSubmitError('');
-                  setSelectedSession(session);
+                  router.push({ pathname: '/presensi/[id]', params: { id: session.id } } as Href);
                 }}
                 leaveRequest={leaveRequests.records.find((leave) => leave.sessionId === item.id)}
                 onPressLeave={() => {
@@ -189,24 +157,6 @@ export default function HomeScreen() {
             )}
           </View>
         )}
-      />
-      <AttendanceFormModal
-        visible={!!selectedSession}
-        sessionId={selectedSession?.id ?? ''}
-        courseName={selectedSession?.courseName}
-        className={selectedSession?.className}
-        initialStudentId={activeUser.identifier}
-        initialStudentName={activeUser.name}
-        identityLocked
-        onClose={() => setSelectedSession(null)}
-        onSubmit={handleSubmitAttendance}
-      />
-      <AttendanceFeedbackModal
-        visible={!!feedback}
-        courseName={feedback?.courseName}
-        attendance={feedback?.record ?? null}
-        isDuplicate={feedback?.isDuplicate}
-        onClose={() => setFeedback(null)}
       />
       {!isAssistant && selectedLeaveSession ? (
         <LeaveRequestModal

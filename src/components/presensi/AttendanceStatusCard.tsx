@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { MetaList, MetaRow, Notice, Panel } from '@/components/common/ui';
+import { ActionRow, Button, MetaList, MetaRow, Notice, Panel } from '@/components/common/ui';
 import {
   LabSyncColors as colors,
   LabSyncSpacing as space,
@@ -8,7 +8,17 @@ import {
 } from '@/constants/labsync-theme';
 import type { PresensiAvailability } from '@/services/attendance/session-guard';
 
-export function AttendanceStatusCard({ availability }: { availability: PresensiAvailability }) {
+export interface AttendanceStatusCardProps {
+  availability: PresensiAvailability;
+  onViewHistory?: () => void;
+  onBackToHome?: () => void;
+}
+
+export function AttendanceStatusCard({
+  availability,
+  onViewHistory,
+  onBackToHome,
+}: AttendanceStatusCardProps) {
   if (availability.kind === 'already-attended') {
     const { record } = availability;
     return (
@@ -20,6 +30,16 @@ export function AttendanceStatusCard({ availability }: { availability: PresensiA
           <MetaRow label="Mahasiswa" value={`${record.studentName} (${record.studentId})`} />
           {record.notes ? <MetaRow label="Catatan / PC" value={record.notes} mono /> : null}
         </MetaList>
+        {onViewHistory || onBackToHome ? (
+          <ActionRow>
+            {onViewHistory ? (
+              <Button variant="primary" label="Lihat Riwayat Saya" onPress={onViewHistory} grow />
+            ) : null}
+            {onBackToHome ? (
+              <Button label="Kembali ke Jadwal" onPress={onBackToHome} grow />
+            ) : null}
+          </ActionRow>
+        ) : null}
       </Panel>
     );
   }

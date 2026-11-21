@@ -27,6 +27,8 @@ import { usePresensiRealtime } from '@/hooks/use-presensi-realtime';
 import { usePresensiSessionDetail } from '@/hooks/use-presensi-session-detail';
 import { useQrScanner } from '@/hooks/use-qr-scanner';
 import type { RecoveryAction } from '@/services/attendance/check-in-feedback';
+import { reconcileOwnAttendance } from '@/services/attendance/recap-sync';
+import { resolvePresensiAvailability } from '@/services/attendance/session-guard';
 import { buildPresensiSessionMeta } from '@/services/attendance/session-view';
 
 export default function PresensiSessionScreen() {
@@ -41,14 +43,27 @@ export default function PresensiSessionScreen() {
   const liveSession = realtime.session ?? detail.session;
   const liveMeta = liveSession ? buildPresensiSessionMeta(liveSession, detail.lab) : detail.meta;
   const [notes, setNotes] = useState('');
-  const canAttend = Boolean(realtime.availability?.canScan);
   const deviceLocation = useDeviceLocation();
   const qrScanner = useQrScanner(sessionId ?? '');
-  const checkIn = useCheckInController(sessionId, qrScanner, deviceLocation);
+  const checkIn = useCheckInController(sessionId, qrScanner, deviceLocation, {
+    studentUid: activeUser.id,
+    studentId: activeUser.identifier,
+    studentName: activeUser.name,
+    className: liveMeta?.className ?? liveSession?.className ?? '',
+  });
+  const effectiveOwnAttendance = reconcileOwnAttendance(
+    realtime.ownAttendance,
+    checkIn.committedRecord,
+  );
+  const effectiveAvailability = liveSession
+    ? resolvePresensiAvailability(liveSession.status, effectiveOwnAttendance)
+    : realtime.availability;
+  const canAttend = Boolean(effectiveAvailability?.canScan);
   const cameraGate = useCameraGate(canAttend && !checkIn.submitting);
   const locationHint = useLocationHint(deviceLocation.fix, liveMeta, detail.lab);
 
   const goBack = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const goToHistory = () => router.push('/history');
 
   const handleRecovery = (action: RecoveryAction) => {
     if (action === 'rescan-qr') {
@@ -110,7 +125,13 @@ export default function PresensiSessionScreen() {
             </SessionSheet>
 
             {realtime.error ? <Notice tone="warning" message={realtime.error} /> : null}
-            {realtime.availability ? <AttendanceStatusCard availability={realtime.availability} /> : null}
+            {effectiveAvailability ? (
+              <AttendanceStatusCard
+                availability={effectiveAvailability}
+                onViewHistory={goToHistory}
+                onBackToHome={goBack}
+              />
+            ) : null}
             {checkIn.feedback ? (
               <CheckInFeedbackCard feedback={checkIn.feedback} onRecovery={handleRecovery} />
             ) : null}
