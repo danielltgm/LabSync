@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where, type Firestore } from 'firebase/firestore';
 
-import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
+import { dedupeAttendanceRecords } from '@/services/attendance/recap-sync';
 import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { SessionStatus } from '@/types/session';
 import type { AttendanceDocument, LiveSession, SessionDocument, UserDocument } from '@/types/sprint2';
@@ -43,62 +43,6 @@ export function updateSessionStatus(db: Firestore, sessionId: string, status: Ex
   });
 }
 
-function formatJakartaTime(date: Date) {
-  return date.toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour12: false }).replaceAll('.', ':');
-}
-
-export function submitAttendance(db: Firestore, studentUid: string, payload: AttendancePayload) {
-  const sessionRef = doc(db, 'sessions', payload.sessionId);
-  const attendanceRef = doc(db, 'attendance', `${payload.sessionId}__${studentUid}`);
-
-  return runTransaction(db, async (transaction) => {
-    const [sessionSnap, attendanceSnap] = await Promise.all([
-      transaction.get(sessionRef),
-      transaction.get(attendanceRef),
-    ]);
-
-    if (attendanceSnap.exists()) {
-      return {
-        isDuplicate: true,
-        record: toAttendanceRecord(attendanceSnap.id, attendanceSnap.data() as AttendanceDocument),
-      };
-    }
-
-    const session = sessionSnap.data() as SessionDocument | undefined;
-    if (!session || session.status !== 'DIBUKA') {
-      throw new Error('Sesi praktikum tidak sedang dibuka.');
-    }
-
-    const notes = payload.notes?.trim();
-    const studentId = payload.studentId.trim();
-    const studentName = payload.studentName.trim();
-
-    transaction.set(attendanceRef, {
-      sessionId: payload.sessionId,
-      classId: session.classId,
-      studentUid,
-      studentId,
-      studentName,
-      className: session.className,
-      checkedInAt: serverTimestamp(),
-      ...(notes ? { notes } : {}),
-    });
-
-    return {
-      isDuplicate: false,
-      record: {
-        id: attendanceRef.id,
-        sessionId: payload.sessionId,
-        studentId,
-        studentName,
-        className: session.className,
-        notes: notes || undefined,
-        checkInTime: formatJakartaTime(new Date()),
-      } satisfies AttendanceRecord,
-    };
-  });
-}
-
 type AttendanceScope = { studentUid: string } | { classId: string; sessionId: string };
 
 export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange: (records: LiveAttendanceRecord[]) => void, onError: OnError) {
@@ -107,8 +51,8 @@ export function watchAttendance(db: Firestore, scope: AttendanceScope, onChange:
     ? query(records, where('studentUid', '==', scope.studentUid))
     : query(records, where('classId', '==', scope.classId), where('sessionId', '==', scope.sessionId));
 
-  return onSnapshot(scoped, (snapshot) => onChange(snapshot.docs.map((item) =>
-    toAttendanceRecord(item.id, item.data() as AttendanceDocument))), onError);
+  return onSnapshot(scoped, (snapshot) => onChange(dedupeAttendanceRecords(snapshot.docs.map((item) =>
+    toAttendanceRecord(item.id, item.data() as AttendanceDocument)))), onError);
 }
 
 export interface ManagedClass {

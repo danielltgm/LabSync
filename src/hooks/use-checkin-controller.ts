@@ -16,11 +16,21 @@ import {
   resolveCheckInUrl,
 } from '@/services/attendance/check-in-request';
 import { validateDeviceLocationFix } from '@/services/attendance/location-validator';
+import { toLiveAttendanceFromCheckIn } from '@/services/attendance/recap-sync';
+import type { LiveAttendanceRecord } from '@/types/attendance-view';
+
+export interface CheckInRecordContext {
+  studentUid: string;
+  studentId: string;
+  studentName: string;
+  className: string;
+}
 
 export interface CheckInController {
   submitting: boolean;
   outcome: CheckInOutcome | null;
   feedback: CheckInFeedbackView | null;
+  committedRecord: LiveAttendanceRecord | null;
   submit: (notes: string) => Promise<void>;
   clearFeedback: () => void;
 }
@@ -29,10 +39,12 @@ export function useCheckInController(
   sessionId: string | undefined,
   qrScanner: QrScannerController,
   deviceLocation: DeviceLocationController,
+  recordContext?: CheckInRecordContext,
 ): CheckInController {
   const [submitting, setSubmitting] = useState(false);
   const [outcome, setOutcome] = useState<CheckInOutcome | null>(null);
   const [feedback, setFeedback] = useState<CheckInFeedbackView | null>(null);
+  const [submittedNotes, setSubmittedNotes] = useState('');
 
   const submit = useCallback(
     async (notes: string) => {
@@ -63,6 +75,7 @@ export function useCheckInController(
           endpointUrl: resolveCheckInUrl(process.env.EXPO_PUBLIC_LABSYNC_API_ORIGIN),
           getIdToken: async () => (await firebase?.auth.currentUser?.getIdToken()) ?? null,
         });
+        setSubmittedNotes(notes);
         setOutcome(result);
         const mapped = resolveCheckInFeedback(result);
         setFeedback(mapped);
@@ -84,5 +97,18 @@ export function useCheckInController(
     setFeedback(null);
   }, []);
 
-  return { submitting, outcome, feedback, submit, clearFeedback };
+  const committedRecord =
+    outcome?.kind === 'success' && sessionId && recordContext
+      ? toLiveAttendanceFromCheckIn({
+          result: outcome.data,
+          sessionId,
+          studentUid: recordContext.studentUid,
+          studentId: recordContext.studentId,
+          studentName: recordContext.studentName,
+          className: recordContext.className,
+          notes: submittedNotes,
+        })
+      : null;
+
+  return { submitting, outcome, feedback, committedRecord, submit, clearFeedback };
 }
