@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ActionRow, Button, LoadingLine } from '@/components/common/ui';
+import { ActionRow, Button, LoadingLine, Notice } from '@/components/common/ui';
 import { LabMap } from '@/components/maps/LabMap';
 import { LabSyncColors, LabSyncTypography } from '@/constants/labsync-theme';
 import { useLabs } from '@/hooks/use-lab-map';
@@ -15,6 +15,7 @@ export default function MapsScreen() {
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
   const [selected, setSelected] = useState<LabId | null>(null);
+  const [retry, setRetry] = useState(0);
   const [locationRetry, setLocationRetry] = useState(0);
   useEffect(() => {
     const listener = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
@@ -22,7 +23,7 @@ export default function MapsScreen() {
   }, []);
 
   const active = focused && foreground;
-  const labs = useLabs(active);
+  const labs = useLabs(active, retry);
   const location = useMapLocation(active, locationRetry > 0, locationRetry);
   const markers = labs.labs.flatMap((lab) => lab.coordinates ? [{ ...lab, coordinates: lab.coordinates }] : []);
 
@@ -36,6 +37,10 @@ export default function MapsScreen() {
         <LabMap markers={markers} location={location.coordinates} selected={selected} onSelect={setSelected} />
         <ActionRow><Button compact label={locationRetry > 0 ? 'Perbarui lokasi' : 'Tampilkan lokasi saya'}
           onPress={() => setLocationRetry((value) => value + 1)} /></ActionRow>
+        {!!location.message && <Notice message={location.message} />}
+        {!!labs.error && <Notice tone="warning" message={labs.error}>
+          <Button compact label="Muat ulang lab" onPress={() => setRetry((value) => value + 1)} />
+        </Notice>}
         {labs.loading && <LoadingLine label="Memuat lab…" />}
         <Text accessibilityRole="header" style={styles.subtitle}>Pilih laboratorium</Text>
         <View style={styles.choices}>
