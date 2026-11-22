@@ -109,6 +109,17 @@ export async function handleCloseSessionRequest(request: Request): Promise<Respo
     // 8. Update status sesi → SELESAI
     await sessionRef.update({ status: 'SELESAI' });
 
+    // 8b. Update status proyeksi labActivities/{sessionId} jika ada (D-07)
+    try {
+      const activityRef = db.doc(`labActivities/${sessionId}`);
+      const activitySnap = await activityRef.get();
+      if (activitySnap.exists) {
+        await activityRef.update({ status: 'SELESAI' });
+      }
+    } catch {
+      // Abaikan jika proyeksi belum pernah dibuat
+    }
+
     // 9. Cabut semua challenge QR aktif
     const revokedCount = await revokeSessionChallenges(db, sessionId);
 

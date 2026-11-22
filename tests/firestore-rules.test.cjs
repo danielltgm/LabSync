@@ -556,4 +556,45 @@ test('S3-D-03: attendanceChallenges collection is strictly server-only (client r
   await assertFails(deleteDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
 });
 
+test('S3-D-07: labActivities is readable by authenticated users and client write is rejected', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'labActivities/session-mobile-act'), {
+      sessionId: 'session-mobile-act',
+      labId: 'lab-ap',
+      courseName: 'Praktikum Mobile',
+      className: 'IF-3A',
+      startsAt: Timestamp.fromMillis(Date.now()),
+      endsAt: Timestamp.fromMillis(Date.now() + 3600000),
+      status: 'TERJADWAL',
+      scheduleRevision: 1,
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // Authenticated users can read
+  await assertSucceeds(getDoc(doc(student, 'labActivities/session-mobile-act')));
+  await assertSucceeds(getDoc(doc(assistant, 'labActivities/session-mobile-act')));
+  await assertSucceeds(getDocs(collection(student, 'labActivities')));
+
+  // Unauthenticated read fails
+  await assertFails(getDoc(doc(unauthed, 'labActivities/session-mobile-act')));
+  await assertFails(getDocs(collection(unauthed, 'labActivities')));
+
+  // All client writes fail
+  await assertFails(setDoc(doc(student, 'labActivities/fake-act'), {
+    sessionId: 'fake-act',
+    labId: 'lab-ap',
+  }));
+  await assertFails(setDoc(doc(assistant, 'labActivities/fake-act'), {
+    sessionId: 'fake-act',
+    labId: 'lab-ap',
+  }));
+  await assertFails(updateDoc(doc(assistant, 'labActivities/session-mobile-act'), { status: 'SELESAI' }));
+  await assertFails(deleteDoc(doc(assistant, 'labActivities/session-mobile-act')));
+});
+
+
 

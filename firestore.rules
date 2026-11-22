@@ -169,6 +169,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    match /labActivities/{sessionId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
     match /attendanceChallenges/{challengeId} {
       allow read, write: if false;
     }

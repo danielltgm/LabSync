@@ -4,6 +4,7 @@ import type { AttendancePayload, AttendanceRecord } from '@/types/attendance';
 import type { LiveAttendanceRecord } from '@/types/attendance-view';
 import type { SessionStatus } from '@/types/session';
 import type { AttendanceDocument, LiveSession, SessionDocument, UserDocument } from '@/types/sprint2';
+import type { LabActivityDocument, LabId } from '@/types/sprint3';
 import type { UserProfile } from '@/types/user';
 import { toAttendanceRecord } from '@/utils/attendance-view';
 
@@ -219,3 +220,61 @@ export async function submitLeaveRequest(
 
   return requestId;
 }
+
+/**
+ * Berlangganan (listen) ke aktivitas laboratorium tertentu secara realtime (D-07, Y-04).
+ * Mengonsumsi dokumen publik dari koleksi `labActivities` tanpa mengakses sesi privat.
+ */
+export function watchLabActivities(
+  db: Firestore,
+  labId: LabId,
+  onChange: (activities: LabActivityDocument[]) => void,
+  onError?: OnError
+) {
+  const activitiesQuery = query(
+    collection(db, 'labActivities'),
+    where('labId', '==', labId)
+  );
+
+  return onSnapshot(
+    activitiesQuery,
+    (snapshot) => {
+      const records: LabActivityDocument[] = snapshot.docs.map((item) => {
+        const data = item.data() as LabActivityDocument;
+        return {
+          ...data,
+          sessionId: item.id,
+        };
+      });
+      onChange(records);
+    },
+    onError
+  );
+}
+
+/**
+ * Berlangganan (listen) ke seluruh aktivitas laboratorium secara realtime (D-07, Y-04).
+ */
+export function watchAllLabActivities(
+  db: Firestore,
+  onChange: (activities: LabActivityDocument[]) => void,
+  onError?: OnError
+) {
+  const activitiesQuery = collection(db, 'labActivities');
+
+  return onSnapshot(
+    activitiesQuery,
+    (snapshot) => {
+      const records: LabActivityDocument[] = snapshot.docs.map((item) => {
+        const data = item.data() as LabActivityDocument;
+        return {
+          ...data,
+          sessionId: item.id,
+        };
+      });
+      onChange(records);
+    },
+    onError
+  );
+}
+
