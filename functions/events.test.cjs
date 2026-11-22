@@ -1,7 +1,7 @@
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { leaveEvent, sessionEvent } = require('./events.cjs');
+const { leaveEvent, retryDelay, sessionEvent } = require('./events.cjs');
 
 const scheduled = { status: 'TERJADWAL', classId: 'a', scheduleRevision: 2, labId: 'lab-ap', courseName: 'Mobile' };
 
@@ -28,4 +28,8 @@ test('only pending to approved/rejected yields an event for the request owner', 
     assert.equal(leaveEvent('s__u', after, { ...after, classification: {} }), null);
   }
   assert.equal(leaveEvent('s__other', before, { ...before, decision: 'approved' }), null);
+});
+
+test('the final attempt is terminal', () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map(retryDelay), [60_000, 120_000, 240_000, 480_000, null]);
 });
