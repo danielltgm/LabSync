@@ -77,17 +77,8 @@ service cloud.firestore {
         data.reviewedBy == request.auth.uid && data.reviewedAt == request.time;
     }
 
-    function canCreateAttendance(attendanceId, data) {
-      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return data.keys().hasOnly(['sessionId', 'classId', 'studentUid', 'studentId', 'studentName', 'className', 'checkedInAt', 'notes']) &&
-        isOwner(data.studentUid) && enrolledIn(data.classId) && validId(data.sessionId) &&
-        data.studentId == profile.identifier && data.studentName == profile.name &&
-        data.className == get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.className &&
-        data.checkedInAt == request.time && (!('notes' in data) || validText(data.notes, 250)) &&
-        attendanceId == data.sessionId + '__' + request.auth.uid &&
-        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId &&
-        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.status == 'DIBUKA';
-    }
+    // S3-D-08: canCreateAttendance dihapus karena direct-write presensi ditutup.
+    // Penulisan presensi kini otoritatif melalui backend server.
 
     function canCreateLeaveRequest(requestId, data) {
       return isValidLeaveRequest(data) && isOwner(data.studentUid) &&
@@ -185,9 +176,11 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
+      // S3-D-08: Direct client write (create/update/delete) ditolak pada Sprint 3.
+      // Seluruh presensi wajib diverifikasi otoritatif oleh backend server (Admin SDK).
       allow get: if resource == null && canReadMissingOwnRecord(attendanceId);
       allow read: if canReadStudentRecord(resource.data);
-      allow create: if canCreateAttendance(attendanceId, request.resource.data);
+      allow write: if false;
     }
 
     match /leaveRequests/{requestId} {
