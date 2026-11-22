@@ -26,9 +26,12 @@ service cloud.firestore {
     }
 
     function isValidSessionUpdate() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
-        ((resource.data.status == 'TERJADWAL' && request.resource.data.status == 'DIBUKA') ||
-         (resource.data.status == 'DIBUKA' && request.resource.data.status == 'SELESAI'));
+      return (
+        (resource.data.status == 'TERJADWAL' && request.resource.data.status == 'DIBUKA' &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'attendanceConfig'])) ||
+        (resource.data.status == 'DIBUKA' && request.resource.data.status == 'SELESAI' &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
+      );
     }
 
     function canReadStudentRecord(data) {
@@ -74,17 +77,8 @@ service cloud.firestore {
         data.reviewedBy == request.auth.uid && data.reviewedAt == request.time;
     }
 
-    function canCreateAttendance(attendanceId, data) {
-      let profile = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return data.keys().hasOnly(['sessionId', 'classId', 'studentUid', 'studentId', 'studentName', 'className', 'checkedInAt', 'notes']) &&
-        isOwner(data.studentUid) && enrolledIn(data.classId) && validId(data.sessionId) &&
-        data.studentId == profile.identifier && data.studentName == profile.name &&
-        data.className == get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.className &&
-        data.checkedInAt == request.time && (!('notes' in data) || validText(data.notes, 250)) &&
-        attendanceId == data.sessionId + '__' + request.auth.uid &&
-        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.classId == data.classId &&
-        get(/databases/$(database)/documents/sessions/$(data.sessionId)).data.status == 'DIBUKA';
-    }
+    // S3-D-08: canCreateAttendance dihapus karena direct-write presensi ditutup.
+    // Penulisan presensi kini otoritatif melalui backend server.
 
     function canCreateLeaveRequest(requestId, data) {
       return isValidLeaveRequest(data) && isOwner(data.studentUid) &&
@@ -133,13 +127,20 @@ service cloud.firestore {
     }
 
     function isValidScheduledSession(data) {
-      return data.keys().hasOnly(['classId', 'courseName', 'className', 'labRoom', 'date', 'startTime', 'endTime', 'assistantName', 'status']) &&
+      return data.keys().hasOnly(['classId', 'courseName', 'className', 'labRoom', 'date', 'startTime', 'endTime', 'assistantName', 'status',
+                                  'labId', 'radiusMeters', 'scheduleRevision', 'startsAt', 'endsAt', 'attendanceConfig']) &&
+        data.keys().hasAll(['classId', 'courseName', 'className', 'labRoom', 'date', 'startTime', 'endTime', 'assistantName', 'status']) &&
         data.status == 'TERJADWAL' && validId(data.classId) &&
         validText(data.courseName, 160) && validText(data.className, 120) &&
         validText(data.labRoom, 120) && validText(data.assistantName, 200) &&
         data.date is string && data.date.matches('^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$') &&
         data.startTime is string && data.startTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
-        data.endTime is string && data.endTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+        data.endTime is string && data.endTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+        (!('labId' in data) || data.labId in ['lab-ap', 'lab-b', 'lab-c', 'lab-d']) &&
+        (!('radiusMeters' in data) || (data.radiusMeters is number && data.radiusMeters > 0)) &&
+        (!('scheduleRevision' in data) || (data.scheduleRevision is int && data.scheduleRevision >= 1)) &&
+        (!('startsAt' in data) || data.startsAt is timestamp) &&
+        (!('endsAt' in data) || data.endsAt is timestamp);
     }
 
     match /sessions/{sessionId} {
@@ -149,8 +150,23 @@ service cloud.firestore {
         (isValidSessionUpdate() ||
          (resource.data.status == 'TERJADWAL' &&
           request.resource.data.status == 'TERJADWAL' &&
-          request.resource.data.classId == resource.data.classId));
+          request.resource.data.classId == resource.data.classId &&
+          isValidScheduledSession(request.resource.data)));
       allow delete: if managesClass(resource.data.classId) && resource.data.status == 'TERJADWAL';
+    }
+
+    match /labs/{labId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /labActivities/{sessionId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    match /attendanceChallenges/{challengeId} {
+      allow read, write: if false;
     }
 
     // Scope missing-document reads for check-in and leave transactions.
@@ -160,9 +176,11 @@ service cloud.firestore {
     }
 
     match /attendance/{attendanceId} {
+      // S3-D-08: Direct client write (create/update/delete) ditolak pada Sprint 3.
+      // Seluruh presensi wajib diverifikasi otoritatif oleh backend server (Admin SDK).
       allow get: if resource == null && canReadMissingOwnRecord(attendanceId);
       allow read: if canReadStudentRecord(resource.data);
-      allow create: if canCreateAttendance(attendanceId, request.resource.data);
+      allow write: if false;
     }
 
     match /deviceRegistrations/{installationId} {

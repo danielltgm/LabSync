@@ -280,9 +280,16 @@ test('SRS-01: user self-registration creates profile with valid role and matchin
   }));
 });
 
-test('enrolled student can create attendance only once while the session is open', async () => {
+test('S3-D-08: direct client attendance write is completely rejected (server-only write via Admin SDK, reads allowed)', async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), { classId: 'mobile', className: 'IF-3A', status: 'TERJADWAL' });
+    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), {
+      classId: 'mobile',
+      className: 'IF-3A',
+      status: 'TERJADWAL',
+      labId: 'lab-ap',
+      radiusMeters: 50,
+      scheduleRevision: 1,
+    });
   });
 
   const student = account('student');
@@ -290,22 +297,70 @@ test('enrolled student can create attendance only once while the session is open
   const assistant = account('assistant');
   const sessionRef = doc(assistant, 'sessions/mobile-2');
   const attendanceRef = doc(student, 'attendance/mobile-2__student');
-  const record = { studentUid: 'student', classId: 'mobile', sessionId: 'mobile-2', studentName: 'Praktikan Demo', studentId: 'NIM-DEMO', className: 'IF-3A', checkedInAt: serverTimestamp(), notes: 'PC-01' };
+  const record = {
+    studentUid: 'student',
+    classId: 'mobile',
+    sessionId: 'mobile-2',
+    studentName: 'Praktikan Demo',
+    studentId: 'NIM-DEMO',
+    className: 'IF-3A',
+    checkedInAt: serverTimestamp(),
+    notes: 'PC-01',
+  };
+
+  // 1. Missing document check works
   assert.equal((await assertSucceeds(getDoc(attendanceRef))).exists(), false);
 
+  // 2. Client write while TERJADWAL fails
   await assertFails(setDoc(attendanceRef, record));
-  await assertSucceeds(updateDoc(sessionRef, { status: 'DIBUKA' }));
 
-  await assertFails(setDoc(doc(outsider, 'attendance/mobile-2__outsider'), {
-    studentUid: 'outsider', classId: 'mobile', sessionId: 'mobile-2',
+  // 3. Assistant opens session with snapshot
+  await assertSucceeds(updateDoc(sessionRef, {
+    status: 'DIBUKA',
+    attendanceConfig: {
+      labId: 'lab-ap',
+      coordinates: { latitude: -6.2, longitude: 106.8 },
+      labConfigVersion: 1,
+      radiusMeters: 50,
+      policyVersion: 's3-v1',
+    },
   }));
-  await assertFails(setDoc(doc(student, 'attendance/mobile-2__other'), record));
-  await assertFails(setDoc(attendanceRef, { ...record, classId: 'other' }));
 
-  await assertFails(setDoc(attendanceRef, { ...record, studentName: 'Nama lain' }));
-  await assertSucceeds(setDoc(attendanceRef, record));
-  await assertFails(setDoc(attendanceRef, { ...record, notes: 'PC-99' }));
+  // 4. S3-D-08: Direct client writes are REJECTED even when session is DIBUKA and fields are valid
+  await assertFails(setDoc(attendanceRef, record));
+  await assertFails(setDoc(doc(outsider, 'attendance/mobile-2__outsider'), record));
+  await assertFails(setDoc(doc(student, 'attendance/mobile-2__other'), record));
+
+  // 5. Presensi disimpan otoritatif oleh server (disimulasikan dengan rules disabled / Admin SDK)
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'attendance/mobile-2__student'), {
+      ...record,
+      verification: {
+        method: 'qr-geotag',
+        labId: 'lab-ap',
+        labConfigVersion: 1,
+        policyVersion: 's3-v1',
+        challengeId: 'ch-test-1',
+        distanceMeters: 12.5,
+        radiusMeters: 50,
+        location: {
+          latitude: -6.2001,
+          longitude: 106.8001,
+          accuracyMeters: 10,
+          capturedAtMs: Date.now(),
+        },
+        locationAgeMs: 500,
+      },
+    });
+  });
+
+  // 6. S3-D-08: Dokumen yang ditulis server dapat dibaca oleh praktikan sendiri & asisten pemilik
+  assert.equal((await assertSucceeds(getDoc(attendanceRef))).exists(), true);
   assert.equal((await assertSucceeds(getDoc(attendanceRef))).data()?.notes, 'PC-01');
+
+  // 7. Client tidak dapat memodifikasi atau menghapus presensi yang sudah tersimpan
+  await assertFails(updateDoc(attendanceRef, { notes: 'PC-HACKED' }));
+  await assertFails(deleteDoc(attendanceRef));
 
   await assertSucceeds(updateDoc(sessionRef, { status: 'SELESAI' }));
 });
@@ -452,3 +507,149 @@ test('production transaction prevents concurrent reviews from overwriting the fi
   assert.equal(after.decision, original.decision);
   assert.ok(after.reviewedAt.isEqual(original.reviewedAt));
 });
+
+test('S3-D-01: authenticated users can read labs but client writes are forbidden', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'labs/lab-ap'), {
+      id: 'lab-ap', name: 'LAB AP', coordinates: null, enabled: false, configVersion: 1,
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // Authenticated read succeeds
+  await assertSucceeds(getDoc(doc(student, 'labs/lab-ap')));
+  await assertSucceeds(getDoc(doc(assistant, 'labs/lab-ap')));
+
+  // Unauthenticated read fails
+  await assertFails(getDoc(doc(unauthed, 'labs/lab-ap')));
+
+  // Client write fails for all clients
+  await assertFails(setDoc(doc(assistant, 'labs/lab-b'), {
+    id: 'lab-b', name: 'LAB B', coordinates: null, enabled: false, configVersion: 1,
+  }));
+  await assertFails(updateDoc(doc(assistant, 'labs/lab-ap'), { enabled: true }));
+  await assertFails(deleteDoc(doc(assistant, 'labs/lab-ap')));
+});
+
+test('S3-D-02: session rules enforce valid labId and positive radius on TERJADWAL and open with config', async () => {
+  const assistant = account('assistant');
+
+  const baseSession = {
+    classId: 'mobile', courseName: 'Pemrograman Mobile', className: 'IF-3A',
+    labRoom: 'Lab RPL', date: '2026-11-25', startTime: '10:00', endTime: '12:00',
+    assistantName: 'Asisten Demo', status: 'TERJADWAL',
+  };
+
+  // Valid session creation with Sprint 3 fields
+  await assertSucceeds(setDoc(doc(assistant, 'sessions/s3-session-valid'), {
+    ...baseSession,
+    labId: 'lab-ap',
+    radiusMeters: 50,
+    scheduleRevision: 1,
+    startsAt: Timestamp.fromMillis(Date.now()),
+    endsAt: Timestamp.fromMillis(Date.now() + 7200000),
+  }));
+
+  // Rejects invalid labId
+  await assertFails(setDoc(doc(assistant, 'sessions/s3-session-bad-lab'), {
+    ...baseSession,
+    labId: 'lab-unknown',
+    radiusMeters: 50,
+  }));
+
+  // Rejects non-positive radius
+  await assertFails(setDoc(doc(assistant, 'sessions/s3-session-zero-radius'), {
+    ...baseSession,
+    labId: 'lab-ap',
+    radiusMeters: 0,
+  }));
+
+  // Assistant can transition TERJADWAL -> DIBUKA with attendanceConfig snapshot
+  await assertSucceeds(updateDoc(doc(assistant, 'sessions/s3-session-valid'), {
+    status: 'DIBUKA',
+    attendanceConfig: {
+      labId: 'lab-ap',
+      coordinates: { latitude: -6.2, longitude: 106.8 },
+      labConfigVersion: 1,
+      radiusMeters: 50,
+      policyVersion: 's3-v1',
+    },
+  }));
+});
+
+test('S3-D-03: attendanceChallenges collection is strictly server-only (client read and write rejected)', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'attendanceChallenges/challenge-123'), {
+      challengeId: 'challenge-123',
+      sessionId: 'mobile-1',
+      tokenHash: 'samplehash',
+      status: 'active',
+      createdAt: '2026-11-20T12:00:00.000Z',
+      expiresAt: '2026-11-20T12:01:00.000Z',
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // All client reads fail
+  await assertFails(getDoc(doc(student, 'attendanceChallenges/challenge-123')));
+  await assertFails(getDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
+  await assertFails(getDoc(doc(unauthed, 'attendanceChallenges/challenge-123')));
+
+  // All client writes fail
+  await assertFails(setDoc(doc(assistant, 'attendanceChallenges/fake-challenge'), {
+    challengeId: 'fake-challenge',
+    sessionId: 'mobile-1',
+    tokenHash: 'fakehash',
+  }));
+  await assertFails(updateDoc(doc(assistant, 'attendanceChallenges/challenge-123'), { status: 'revoked' }));
+  await assertFails(deleteDoc(doc(assistant, 'attendanceChallenges/challenge-123')));
+});
+
+test('S3-D-07: labActivities is readable by authenticated users and client write is rejected', async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'labActivities/session-mobile-act'), {
+      sessionId: 'session-mobile-act',
+      labId: 'lab-ap',
+      courseName: 'Praktikum Mobile',
+      className: 'IF-3A',
+      startsAt: Timestamp.fromMillis(Date.now()),
+      endsAt: Timestamp.fromMillis(Date.now() + 3600000),
+      status: 'TERJADWAL',
+      scheduleRevision: 1,
+    });
+  });
+
+  const student = account('student');
+  const assistant = account('assistant');
+  const unauthed = environment.unauthenticatedContext().firestore();
+
+  // Authenticated users can read
+  await assertSucceeds(getDoc(doc(student, 'labActivities/session-mobile-act')));
+  await assertSucceeds(getDoc(doc(assistant, 'labActivities/session-mobile-act')));
+  await assertSucceeds(getDocs(collection(student, 'labActivities')));
+
+  // Unauthenticated read fails
+  await assertFails(getDoc(doc(unauthed, 'labActivities/session-mobile-act')));
+  await assertFails(getDocs(collection(unauthed, 'labActivities')));
+
+  // All client writes fail
+  await assertFails(setDoc(doc(student, 'labActivities/fake-act'), {
+    sessionId: 'fake-act',
+    labId: 'lab-ap',
+  }));
+  await assertFails(setDoc(doc(assistant, 'labActivities/fake-act'), {
+    sessionId: 'fake-act',
+    labId: 'lab-ap',
+  }));
+  await assertFails(updateDoc(doc(assistant, 'labActivities/session-mobile-act'), { status: 'SELESAI' }));
+  await assertFails(deleteDoc(doc(assistant, 'labActivities/session-mobile-act')));
+});
+
+
+

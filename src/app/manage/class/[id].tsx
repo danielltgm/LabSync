@@ -7,6 +7,7 @@ import { EmptyState } from '@/components/common/EmptyState';
 import { formatSessionDate } from '@/components/common/SessionSheet';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { ActionRow, Button, LoadingLine, MetaList, MetaRow, Notice, PageHeader, Panel } from '@/components/common/ui';
+import { AssistantQrModal } from '@/components/manage/AssistantQrModal';
 import { EnrollmentList } from '@/components/manage/EnrollmentList';
 import {
   LabSyncColors as colors,
@@ -18,6 +19,7 @@ import { firebase } from '@/firebase/client';
 import { watchClass, type ManagedClass } from '@/firebase/queries';
 import { useResponsiveLayout } from '@/hooks/use-responsive-layout';
 import { useSessionManagement } from '@/hooks/useSessionManagement';
+import type { LiveSession } from '@/types/sprint2';
 
 export default function ClassDetailManagementScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,9 +27,10 @@ export default function ClassDetailManagementScreen() {
   const { compact, wide } = useResponsiveLayout();
 
   const [snapshot, setSnapshot] = useState<{ id: string; data: ManagedClass | null }>();
+  const [selectedQrSession, setSelectedQrSession] = useState<LiveSession | null>(null);
 
   const [actionError, setActionError] = useState('');
-  const { sessions, loading: sessionsLoading, busy, error, deleteSession } = useSessionManagement(classId);
+  const { sessions, loading: sessionsLoading, busy, error, deleteSession, openSession, closeSession } = useSessionManagement(classId);
 
   useEffect(() => {
     if (!firebase || !classId) return;
@@ -118,8 +121,32 @@ export default function ClassDetailManagementScreen() {
               <MetaRow label="Asisten" value={item.assistantName} />
             </MetaList>
 
+            {item.status === 'DIBUKA' && (
+              <ActionRow style={styles.sessionActions}>
+                <Button
+                  label="Tampilkan QR Presensi"
+                  variant="primary"
+                  onPress={() => setSelectedQrSession(item)}
+                  grow
+                />
+              </ActionRow>
+            )}
+
             {item.status === 'TERJADWAL' && (
               <ActionRow style={styles.sessionActions}>
+                {(item as Record<string, unknown>).labId && (item as Record<string, unknown>).radiusMeters ? (
+                  <Button
+                    label="Buka Sesi"
+                    variant="primary"
+                    disabled={busy}
+                    onPress={async () => {
+                      setActionError('');
+                      const result = await openSession(item.id);
+                      if (!result.success) setActionError(result.error ?? 'Gagal membuka sesi.');
+                    }}
+                    grow
+                  />
+                ) : null}
                 <Button
                   label="Edit sesi"
                   accessibilityLabel={`Edit sesi ${item.courseName}`}
@@ -144,6 +171,16 @@ export default function ClassDetailManagementScreen() {
             )}
           </Panel>
         )}
+      />
+      <AssistantQrModal
+        visible={Boolean(selectedQrSession)}
+        session={selectedQrSession}
+        onClose={() => setSelectedQrSession(null)}
+        onCloseSession={async (sid) => {
+          setActionError('');
+          const result = await closeSession(sid);
+          if (!result.success) setActionError(result.error ?? 'Gagal menutup sesi.');
+        }}
       />
     </SafeAreaView>
   );
