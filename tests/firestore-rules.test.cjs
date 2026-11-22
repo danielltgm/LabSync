@@ -280,9 +280,16 @@ test('SRS-01: user self-registration creates profile with valid role and matchin
   }));
 });
 
-test('enrolled student can create attendance only once while the session is open', async () => {
+test('S3-D-08: direct client attendance write is completely rejected (server-only write via Admin SDK, reads allowed)', async () => {
   await environment.withSecurityRulesDisabled(async (context) => {
-    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), { classId: 'mobile', className: 'IF-3A', status: 'TERJADWAL' });
+    await setDoc(doc(context.firestore(), 'sessions/mobile-2'), {
+      classId: 'mobile',
+      className: 'IF-3A',
+      status: 'TERJADWAL',
+      labId: 'lab-ap',
+      radiusMeters: 50,
+      scheduleRevision: 1,
+    });
   });
 
   const student = account('student');
@@ -290,22 +297,70 @@ test('enrolled student can create attendance only once while the session is open
   const assistant = account('assistant');
   const sessionRef = doc(assistant, 'sessions/mobile-2');
   const attendanceRef = doc(student, 'attendance/mobile-2__student');
-  const record = { studentUid: 'student', classId: 'mobile', sessionId: 'mobile-2', studentName: 'Praktikan Demo', studentId: 'NIM-DEMO', className: 'IF-3A', checkedInAt: serverTimestamp(), notes: 'PC-01' };
+  const record = {
+    studentUid: 'student',
+    classId: 'mobile',
+    sessionId: 'mobile-2',
+    studentName: 'Praktikan Demo',
+    studentId: 'NIM-DEMO',
+    className: 'IF-3A',
+    checkedInAt: serverTimestamp(),
+    notes: 'PC-01',
+  };
+
+  // 1. Missing document check works
   assert.equal((await assertSucceeds(getDoc(attendanceRef))).exists(), false);
 
+  // 2. Client write while TERJADWAL fails
   await assertFails(setDoc(attendanceRef, record));
-  await assertSucceeds(updateDoc(sessionRef, { status: 'DIBUKA' }));
 
-  await assertFails(setDoc(doc(outsider, 'attendance/mobile-2__outsider'), {
-    studentUid: 'outsider', classId: 'mobile', sessionId: 'mobile-2',
+  // 3. Assistant opens session with snapshot
+  await assertSucceeds(updateDoc(sessionRef, {
+    status: 'DIBUKA',
+    attendanceConfig: {
+      labId: 'lab-ap',
+      coordinates: { latitude: -6.2, longitude: 106.8 },
+      labConfigVersion: 1,
+      radiusMeters: 50,
+      policyVersion: 's3-v1',
+    },
   }));
-  await assertFails(setDoc(doc(student, 'attendance/mobile-2__other'), record));
-  await assertFails(setDoc(attendanceRef, { ...record, classId: 'other' }));
 
-  await assertFails(setDoc(attendanceRef, { ...record, studentName: 'Nama lain' }));
-  await assertSucceeds(setDoc(attendanceRef, record));
-  await assertFails(setDoc(attendanceRef, { ...record, notes: 'PC-99' }));
+  // 4. S3-D-08: Direct client writes are REJECTED even when session is DIBUKA and fields are valid
+  await assertFails(setDoc(attendanceRef, record));
+  await assertFails(setDoc(doc(outsider, 'attendance/mobile-2__outsider'), record));
+  await assertFails(setDoc(doc(student, 'attendance/mobile-2__other'), record));
+
+  // 5. Presensi disimpan otoritatif oleh server (disimulasikan dengan rules disabled / Admin SDK)
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), 'attendance/mobile-2__student'), {
+      ...record,
+      verification: {
+        method: 'qr-geotag',
+        labId: 'lab-ap',
+        labConfigVersion: 1,
+        policyVersion: 's3-v1',
+        challengeId: 'ch-test-1',
+        distanceMeters: 12.5,
+        radiusMeters: 50,
+        location: {
+          latitude: -6.2001,
+          longitude: 106.8001,
+          accuracyMeters: 10,
+          capturedAtMs: Date.now(),
+        },
+        locationAgeMs: 500,
+      },
+    });
+  });
+
+  // 6. S3-D-08: Dokumen yang ditulis server dapat dibaca oleh praktikan sendiri & asisten pemilik
+  assert.equal((await assertSucceeds(getDoc(attendanceRef))).exists(), true);
   assert.equal((await assertSucceeds(getDoc(attendanceRef))).data()?.notes, 'PC-01');
+
+  // 7. Client tidak dapat memodifikasi atau menghapus presensi yang sudah tersimpan
+  await assertFails(updateDoc(attendanceRef, { notes: 'PC-HACKED' }));
+  await assertFails(deleteDoc(attendanceRef));
 
   await assertSucceeds(updateDoc(sessionRef, { status: 'SELESAI' }));
 });
