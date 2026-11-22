@@ -3,10 +3,10 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 const { getMessaging } = require('firebase-admin/messaging');
 const { onDocumentUpdated } = require('firebase-functions/v2/firestore');
-const { onCall } = require('firebase-functions/v2/https');
+const { HttpsError, onCall } = require('firebase-functions/v2/https');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
 
-const { leaveEvent, sessionEvent } = require('./events.cjs');
+const { canReceive, leaveEvent, sessionEvent } = require('./events.cjs');
 const { enqueue, processOutbox } = require('./outbox.cjs');
 const { register, revoke } = require('./registrations.cjs');
 
@@ -24,3 +24,20 @@ exports.deliverLabNotifications = onSchedule({ region, schedule: 'every 1 minute
 
 exports.registerLabNotificationDevice = onCall({ region }, (request) => register(db, request));
 exports.revokeLabNotificationDevice = onCall({ region }, (request) => revoke(db, request));
+
+exports.resolveLabNotification = onCall({ region }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Login diperlukan.');
+  const { eventId, installationId } = request.data ?? {};
+  if (typeof eventId !== 'string' || !/^[a-f0-9]{64}$/.test(eventId) ||
+      typeof installationId !== 'string' || !/^[A-Za-z0-9]{20}$/.test(installationId)) return null;
+  const ref = db.doc('notificationEvents/' + eventId);
+  const [event, delivery, device] = await db.getAll(ref, ref.collection('deliveries').doc(installationId),
+    db.doc('deviceRegistrations/' + installationId));
+  const uid = request.auth.uid;
+  if (delivery.get('recipientUid') !== uid || device.get('ownerUid') !== uid || !device.get('enabled') ||
+      delivery.get('boundAt') !== device.get('boundAt') || !event.exists ||
+      !await canReceive(db, event.data(), uid)) return null;
+  return event.get('leaveRequestId')
+    ? { leaveRequestId: event.get('leaveRequestId') }
+    : { sessionId: event.get('sessionId') };
+});
