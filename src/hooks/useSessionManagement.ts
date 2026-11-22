@@ -3,9 +3,12 @@ import { useEffect, useState } from 'react';
 import { firebase } from '@/firebase/client';
 import { watchSessions } from '@/firebase/queries';
 import {
+  closeSessionViaServer,
   createSession,
   deleteSession,
+  openSessionWithConfig,
   type SessionInput,
+  type SessionServiceResult,
 } from '@/services/sessionService';
 import type { LiveSession } from '@/types/sprint2';
 
@@ -54,6 +57,24 @@ export function useSessionManagement(classId?: string) {
     }
   }
 
+  async function handleOpen(sessionId: string): Promise<SessionServiceResult> {
+    setBusy(true);
+    try {
+      return await openSessionWithConfig(sessionId);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClose(sessionId: string): Promise<SessionServiceResult> {
+    setBusy(true);
+    try {
+      return await closeSessionViaServer(sessionId);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return {
     sessions,
     loading,
@@ -61,5 +82,7 @@ export function useSessionManagement(classId?: string) {
     error,
     createSession: handleCreate,
     deleteSession: handleDelete,
+    openSession: handleOpen,
+    closeSession: handleClose,
   };
 }
