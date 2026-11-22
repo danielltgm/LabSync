@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import { FoundationGate } from '@/components/common/FoundationGate';
 import { firebase } from '@/firebase/client';
 import { updateSessionStatus, watchClassIds, watchProfile, watchSessions } from '@/firebase/queries';
+import { revokeNotificationDevice, usePushNotifications } from '@/services/notifications/push';
 import type { LiveSession } from '@/types/sprint2';
 import type { UserProfile } from '@/types/user';
 
@@ -16,6 +17,7 @@ interface LabSyncContextValue {
   closeSession: (id: string) => void;
   logout: () => void;
   retrySessions: () => void;
+  push: ReturnType<typeof usePushNotifications>;
 }
 
 const LabSyncContext = createContext<LabSyncContextValue | null>(null);
@@ -51,7 +53,10 @@ function AccountProvider({ children, uid }: { children: ReactNode; uid: string }
   }, [uid, attempt]);
 
   const logout = () => {
-    if (firebase) void signOut(firebase.auth).catch(() => setError('Logout gagal. Coba lagi.'));
+    const auth = firebase?.auth;
+    if (!auth) return;
+    void revokeNotificationDevice().catch(() => undefined)
+      .then(() => signOut(auth)).catch(() => setError('Logout gagal. Coba lagi.'));
   };
 
   if (error) return <FoundationGate message={error} onRetry={() => { setError(''); setAttempt(attempt + 1); }} onLogout={logout} />;
@@ -65,6 +70,7 @@ function SessionProvider({ children, profile, logout }: { children: ReactNode; p
   const [sessions, setSessions] = useState<LiveSession[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
   const [readError, setReadError] = useState('');
+  const push = usePushNotifications(profile.id);
   const [writeError, setWriteError] = useState('');
 
   useEffect(() => {
@@ -112,7 +118,7 @@ function SessionProvider({ children, profile, logout }: { children: ReactNode; p
       activeUser: profile, sessions, loadingSessions, error: writeError || readError,
       openSession: (id) => changeStatus(id, 'DIBUKA'),
       closeSession: (id) => changeStatus(id, 'SELESAI'),
-      logout,
+      logout, push,
       retrySessions: () => { setWriteError(''); setAttempt((current) => current + 1); },
     }}>
       {children}

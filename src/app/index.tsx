@@ -32,7 +32,7 @@ import type { LiveSession } from '@/types/sprint2';
 export default function HomeScreen() {
   const { wide, compact } = useResponsiveLayout();
   const columns = wide ? 2 : 1;
-  const { sessions, activeUser, loadingSessions, error, retrySessions, openSession, closeSession, logout } = useLabSync();
+  const { sessions, activeUser, loadingSessions, error, retrySessions, openSession, closeSession, logout, push } = useLabSync();
   const isAssistant = activeUser.role === 'ASISTEN';
   const attendance = useAttendance(isAssistant ? undefined : activeUser.id);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -149,6 +149,9 @@ export default function HomeScreen() {
               )}
             </View>
 
+            {push.available && !!push.message && <Notice message={push.message}>
+              <Button compact label="Coba aktifkan notifikasi" onPress={push.enable} />
+            </Notice>}
             <View style={styles.section}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>Jadwal praktikum</Text>
               {!loadingSessions && <Text style={styles.caption}>{sessions.length} sesi</Text>}

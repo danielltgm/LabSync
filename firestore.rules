@@ -165,6 +165,14 @@ service cloud.firestore {
       allow create: if canCreateAttendance(attendanceId, request.resource.data);
     }
 
+    match /deviceRegistrations/{installationId} {
+      allow read, write: if false;
+    }
+
+    match /notificationTokens/{tokenHash} {
+      allow read, write: if false;
+    }
+
     match /notificationEvents/{path=**} {
       allow read, write: if false;
     }
