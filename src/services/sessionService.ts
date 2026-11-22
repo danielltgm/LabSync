@@ -12,6 +12,10 @@ import {
   validateRadius,
   validateSessionConfiguration,
 } from '@/server/attendance/legacy-adapter';
+import {
+  deleteLabActivity,
+  syncLabActivity,
+} from '@/server/attendance/activity-projection';
 import { calculateSessionTimestamps } from '@/server/attendance/schedule-utils';
 import type { IssueChallengeResult } from '@/server/attendance/qr-challenge';
 import { getLabConfiguration, isValidLabId } from '@/server/labs/lab-service';
@@ -124,6 +128,13 @@ export async function createSession(
     }
 
     const sessionId = await createSessionMutation(firebase.db, sessionData);
+    if (sessionData.labId) {
+      try {
+        await syncLabActivity(firebase.db, sessionId, sessionData);
+      } catch {
+        // Best-effort pada client side
+      }
+    }
     return { success: true, sessionId };
   } catch (err: unknown) {
     const message = (err as Error)?.message ?? 'Gagal membuat sesi praktikum.';
@@ -143,6 +154,11 @@ export async function deleteSession(
 
   try {
     await deleteSessionMutation(firebase.db, sessionId);
+    try {
+      await deleteLabActivity(firebase.db, sessionId);
+    } catch {
+      // Best-effort pada client side
+    }
     return { success: true, sessionId };
   } catch (err: unknown) {
     const message = (err as Error)?.message ?? 'Gagal menghapus sesi praktikum.';
@@ -233,6 +249,19 @@ export async function configureSessionLab(
       endsAt: timestamps.endsAt,
       scheduleRevision: nextRevision,
     });
+
+    try {
+      await syncLabActivity(firebase.db, cleanSessionId, {
+        ...current,
+        labId: input.labId,
+        radiusMeters: input.radiusMeters,
+        startsAt: timestamps.startsAt,
+        endsAt: timestamps.endsAt,
+        scheduleRevision: nextRevision,
+      });
+    } catch {
+      // Best-effort pada client side
+    }
 
     return { success: true, sessionId: cleanSessionId };
   } catch (err: unknown) {
@@ -342,6 +371,18 @@ export async function openSessionWithConfig(
       });
     });
 
+    try {
+      const actRef = doc(firebase.db, 'labActivities', sessionId);
+      const actSnap = await getDoc(actRef);
+      if (actSnap.exists()) {
+        await runTransaction(firebase.db, async (t) => {
+          t.update(actRef, { status: 'DIBUKA' });
+        });
+      }
+    } catch {
+      // Best-effort pada client side
+    }
+
     return { success: true, sessionId, attendanceConfig };
   } catch (err: unknown) {
     const message = (err as Error)?.message ?? 'Gagal membuka sesi praktikum.';
@@ -429,6 +470,18 @@ export async function closeSessionWithRevoke(
       }
       transaction.update(sessionRef, { status: 'SELESAI' });
     });
+
+    try {
+      const actRef = doc(firebase.db, 'labActivities', sessionId);
+      const actSnap = await getDoc(actRef);
+      if (actSnap.exists()) {
+        await runTransaction(firebase.db, async (t) => {
+          t.update(actRef, { status: 'SELESAI' });
+        });
+      }
+    } catch {
+      // Best-effort pada client side
+    }
 
     return { success: true, sessionId };
   } catch (err: unknown) {
