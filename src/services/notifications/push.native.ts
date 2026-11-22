@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { AndroidImportance } from 'expo-notifications';
 import * as Notifications from 'expo-notifications';
+import { router, useRootNavigationState } from 'expo-router';
 import { getRandomBytesAsync } from 'expo-crypto';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useEffect, useRef, useState } from 'react';
@@ -19,6 +20,7 @@ const timeout = 7_000;
 let serial = Promise.resolve<unknown>(undefined);
 let closingUid: string | undefined;
 let owner: string | undefined;
+const displayed = new Set<string>();
 
 function queue<T>(job: () => Promise<T>) {
   const work = serial.then(job);
@@ -70,6 +72,7 @@ export async function revokeNotificationDevice() {
       if (saved) await call('revokeLabNotificationDevice', JSON.parse(saved));
     });
   } finally {
+    displayed.clear();
     await Promise.allSettled([
       Notifications.dismissAllNotificationsAsync(),
       Notifications.clearLastNotificationResponseAsync(),
@@ -77,9 +80,16 @@ export async function revokeNotificationDevice() {
   }
 }
 
+function eventId(data?: Record<string, unknown>) {
+  return typeof data?.eventId === 'string' && /^[a-f0-9]{64}$/.test(data.eventId) ? data.eventId : undefined;
+}
+
+const hidden = { shouldShowBanner: false, shouldShowList: false, shouldPlaySound: false, shouldSetBadge: false };
+
 export function usePushNotifications(uid: string) {
   const [message, setMessage] = useState(configured ? 'Menyiapkan notifikasi…' : '');
   const [retry, setRetry] = useState(0);
+  const navigationReady = !!useRootNavigationState()?.key;
   const ask = useRef(false);
 
   useEffect(() => {
@@ -137,6 +147,48 @@ export function usePushNotifications(uid: string) {
       app.remove();
     };
   }, [uid, retry]);
+
+  useEffect(() => {
+    if (!configured || !navigationReady) return;
+    let stopped = false;
+    const opened = new Set<string>();
+    Notifications.setNotificationHandler({
+      handleNotification: async (notification) => {
+        const id = eventId(notification.request.content.data);
+        if (stopped || !live(uid) || !id || displayed.has(id)) return hidden;
+        if (displayed.size >= 100) displayed.clear();
+        displayed.add(id);
+        return { ...hidden, shouldShowBanner: true, shouldShowList: true };
+      },
+    });
+
+    const open = async (response: Notifications.NotificationResponse | null) => {
+      if (stopped || !live(uid) || !response || response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+      const id = eventId(response.notification.request.content.data);
+      if (!id || opened.has(id)) return;
+      opened.add(id);
+      try {
+        const { installationId } = await identity();
+        const { data } = await call<{ leaveRequestId?: string; sessionId?: string } | null>(
+          'resolveLabNotification', { eventId: id, installationId });
+        if (stopped || !live(uid)) return;
+        await Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+        if (stopped || !live(uid)) return;
+        if (data?.leaveRequestId) router.navigate({ pathname: '/izin', params: { requestId: data.leaveRequestId } });
+        else if (data?.sessionId) router.navigate({ pathname: '/', params: { sessionId: data.sessionId } });
+      } catch {
+        opened.delete(id);
+        if (!stopped && live(uid)) setMessage('Pembaruan belum bisa dibuka. Cek koneksi atau buka jadwal dan status izin dari beranda.');
+      }
+    };
+    const tap = Notifications.addNotificationResponseReceivedListener((response) => { void open(response); });
+    void Notifications.getLastNotificationResponseAsync().then(open).catch(() => undefined);
+    return () => {
+      stopped = true;
+      tap.remove();
+      Notifications.setNotificationHandler(null);
+    };
+  }, [uid, navigationReady]);
 
   return {
     available: nativeAndroid,
