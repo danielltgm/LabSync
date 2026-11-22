@@ -165,6 +165,10 @@ service cloud.firestore {
       allow create: if canCreateAttendance(attendanceId, request.resource.data);
     }
 
+    match /notificationEvents/{path=**} {
+      allow read, write: if false;
+    }
+
     match /leaveRequests/{requestId} {
       allow get: if resource == null && canReadMissingOwnRecord(requestId);
       allow read: if canReadStudentRecord(resource.data);
