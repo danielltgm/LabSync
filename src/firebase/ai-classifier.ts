@@ -1,4 +1,7 @@
-import type { LeaveClassificationResult } from '@/types/sprint2';
+/** Category result of a leave reason. */
+export interface LeaveClassificationResult {
+  category: string;
+}
 
 export const LEAVE_CATEGORIES = [
   'Sakit',

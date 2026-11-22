@@ -1,6 +1,0 @@
-[
-  { "id": "lab-ap", "name": "LAB AP", "coordinates": null, "enabled": false, "configVersion": 1 },
-  { "id": "lab-b", "name": "LAB B", "coordinates": null, "enabled": false, "configVersion": 1 },
-  { "id": "lab-c", "name": "LAB C", "coordinates": null, "enabled": false, "configVersion": 1 },
-  { "id": "lab-d", "name": "LAB D", "coordinates": null, "enabled": false, "configVersion": 1 }
-]

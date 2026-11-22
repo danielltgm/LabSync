@@ -1,13 +1,9 @@
-import type { Timestamp } from 'firebase-admin/firestore';
+import { classifyByKeywords, type LeaveCategory } from '@/firebase/ai-classifier';
 
-import { classifyByKeywords } from '@/firebase/ai-classifier';
-import { FieldValue, getAdminApp, getAuth, getFirestore, Timestamp as AdminTimestamp } from '@/server/firebase-admin';
-import type { LeaveClassification, LeaveRequestDocument } from '@/types/sprint2';
-
+// Gemini classification of leave reasons (from Sprint 2). The student's text is treated as data.
 const categories = ['Sakit', 'Keluarga', 'Akademik', 'Transportasi / Kendala', 'Lainnya'];
-const leaseMs = 30_000;
 
-async function classifyWithGemini(reason: string, apiKey: string): Promise<LeaveClassification> {
+async function classifyWithGemini(reason: string, apiKey: string): Promise<{ status: 'classified'; category: string } | { status: 'unavailable' }> {
   const model = process.env.INSTRUCTOR_AI_MODEL?.trim() || 'gemini-3.1-flash-lite';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
   try {
@@ -46,68 +42,12 @@ async function classifyWithGemini(reason: string, apiKey: string): Promise<Leave
   return { status: 'unavailable' };
 }
 
-type StoredLeave = LeaveRequestDocument & { classificationStartedAt?: Timestamp };
-
-export async function classifySavedLeave(request: Request, requestId?: string) {
-  const token = request.headers.get('authorization')?.match(/^Bearer (\S+)$/i)?.[1];
-  if (!token) return Response.json({ error: 'unauthorized' }, { status: 401 });
-  if (!requestId || !/^[\w-]{1,260}$/.test(requestId)) {
-    return Response.json({ error: 'not_found' }, { status: 404 });
+/** Category for a leave reason: Gemini when INSTRUCTOR_AI_API_KEY is set, keyword rules otherwise or on failure. */
+export async function classifyReason(reason: string): Promise<LeaveCategory> {
+  const apiKey = process.env.INSTRUCTOR_AI_API_KEY?.trim();
+  if (apiKey) {
+    const r = await classifyWithGemini(reason, apiKey);
+    if (r.status === 'classified') return r.category as LeaveCategory;
   }
-
-  const app = getAdminApp();
-  if (!app) return Response.json({ error: 'firebase_unavailable' }, { status: 503 });
-
-  let uid: string;
-  try {
-    ({ uid } = await getAuth(app).verifyIdToken(token));
-  } catch {
-    return Response.json({ error: 'unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const db = getFirestore(app);
-    const ref = db.collection('leaveRequests').doc(requestId);
-    const startedAt = AdminTimestamp.now();
-    const claim = await db.runTransaction(async (transaction) => {
-      const leave = (await transaction.get(ref)).data() as StoredLeave | undefined;
-      if (!leave || leave.studentUid !== uid || requestId !== `${leave.sessionId}__${uid}`) {
-        return { kind: 'missing' } as const;
-      }
-      if (leave.classification.status !== 'pending') {
-        return { kind: 'done', classification: leave.classification } as const;
-      }
-      if (leave.classificationStartedAt && startedAt.toMillis() - leave.classificationStartedAt.toMillis() < leaseMs) {
-        return { kind: 'in_progress' } as const;
-      }
-
-      transaction.update(ref, { classificationStartedAt: startedAt });
-      return { kind: 'claimed', reason: leave.reason } as const;
-    });
-
-    if (claim.kind === 'missing') return Response.json({ error: 'not_found' }, { status: 404 });
-    if (claim.kind === 'in_progress') return Response.json({ status: 'pending' }, { status: 202 });
-    if (claim.kind === 'done') return Response.json(claim.classification);
-
-    const apiKey = process.env.INSTRUCTOR_AI_API_KEY?.trim();
-    const reason = claim.reason.trim();
-    let classification: LeaveClassification = { status: 'unavailable' };
-    if (reason.length > 0 && reason.length <= 4000) {
-      if (apiKey) {
-        classification = await classifyWithGemini(reason, apiKey);
-      } else if (app.name === 'demo-labsync' && !/\[(timeout|unavailable)\]/i.test(reason)) {
-        classification = { status: 'classified', category: 'Demo: ' + classifyByKeywords(reason).category };
-      }
-    }
-
-    await db.runTransaction(async (transaction) => {
-      const leave = (await transaction.get(ref)).data() as StoredLeave | undefined;
-      if (leave?.classification.status === 'pending' && leave.classificationStartedAt?.isEqual(startedAt)) {
-        transaction.update(ref, { classification, classificationStartedAt: FieldValue.delete() });
-      }
-    });
-    return Response.json(classification);
-  } catch {
-    return Response.json({ error: 'classification_unavailable' }, { status: 503 });
-  }
+  return classifyByKeywords(reason).category as LeaveCategory;
 }

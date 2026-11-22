@@ -1,0 +1,12 @@
+# Never upload secrets or local test credentials.
+.secrets/
+.env
+.env*.local
+scripts/.seed-accounts.local.json
+# Build output and caches (Vercel builds from source).
+node_modules/
+.expo/
+dist/
+web-build/
+android/
+ios/

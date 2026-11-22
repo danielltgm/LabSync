@@ -37,12 +37,6 @@ firebase-debug*.log
 firestore-debug.log
 ui-debug.log
 
-# Private native Firebase files and service account downloads
-google-services*.json
-GoogleService-Info*.plist
-*firebase-adminsdk*.json
-service-account*.json
-
 # typescript
 *.tsbuildinfo
 
@@ -54,3 +48,8 @@ example
 
 punyaAgil.md
 userStory.md
+.vercel
+
+# Firebase admin key and seeded test passwords (never commit)
+.secrets/
+scripts/.seed-accounts.local.json
