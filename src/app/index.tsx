@@ -98,6 +98,7 @@ export default function HomeScreen() {
                   <Text selectable style={styles.uidValue}>{activeUser.id}</Text>
                 </View>
               )}
+              <ActionRow><Button label="Peta Laboratorium" onPress={() => router.push('./maps')} /></ActionRow>
               {isAssistant ? (
                 <ActionRow>
                   <Button
