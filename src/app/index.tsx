@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -30,9 +30,10 @@ import { useLeaveRequests } from '@/hooks/use-leave-requests';
 import type { LiveSession } from '@/types/sprint2';
 
 export default function HomeScreen() {
+  const { sessionId } = useLocalSearchParams<{ sessionId?: string }>();
   const { wide, compact } = useResponsiveLayout();
   const columns = wide ? 2 : 1;
-  const { sessions, activeUser, loadingSessions, error, retrySessions, openSession, closeSession, logout } = useLabSync();
+  const { sessions, activeUser, loadingSessions, error, retrySessions, openSession, closeSession, logout, push } = useLabSync();
   const isAssistant = activeUser.role === 'ASISTEN';
   const attendance = useAttendance(isAssistant ? undefined : activeUser.id);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
@@ -83,6 +84,7 @@ export default function HomeScreen() {
     });
   };
 
+  const visibleSessions = sessionId ? sessions.filter((session) => session.id === sessionId) : sessions;
   const activeSessionCount = sessions.filter((session) => session.status === 'DIBUKA').length;
   const activeBannerError = error || attendance.error || leaveRequests.error || submitError;
 
@@ -92,7 +94,7 @@ export default function HomeScreen() {
         key={columns}
         numColumns={columns}
         columnWrapperStyle={columns === 2 ? styles.columns : undefined}
-        data={sessions}
+        data={visibleSessions}
         keyExtractor={(item) => item.id}
         contentContainerStyle={[styles.content, compact && styles.compactContent, columns === 2 && styles.wideContent]}
         ItemSeparatorComponent={SessionSeparator}
@@ -149,9 +151,15 @@ export default function HomeScreen() {
               )}
             </View>
 
+            {push.available && !!push.message && <Notice message={push.message}>
+              <Button compact label="Coba aktifkan notifikasi" onPress={push.enable} />
+            </Notice>}
+            {sessionId && <ActionRow>
+              <Button compact label="Lihat semua jadwal" onPress={() => router.replace('/')} />
+            </ActionRow>}
             <View style={styles.section}>
               <Text accessibilityRole="header" style={styles.sectionTitle}>Jadwal praktikum</Text>
-              {!loadingSessions && <Text style={styles.caption}>{sessions.length} sesi</Text>}
+              {!loadingSessions && <Text style={styles.caption}>{visibleSessions.length} sesi</Text>}
             </View>
             {!!activeBannerError && (
               <Notice tone="danger" message={activeBannerError} alert>
@@ -163,7 +171,7 @@ export default function HomeScreen() {
         }
         ListEmptyComponent={loadingSessions
           ? <LoadingLine label="Memuat jadwal…" />
-          : error ? undefined : <EmptyState title="Belum ada jadwal praktikum" description="Jadwal akan muncul saat sesi tersedia." />}
+          : error ? undefined : <EmptyState title={sessionId ? 'Sesi tidak tersedia' : 'Belum ada jadwal praktikum'} description={sessionId ? 'Cek akses kelas atau lihat semua jadwal.' : 'Jadwal akan muncul saat sesi tersedia.'} />}
         renderItem={({ item }) => (
           <View style={columns === 2 ? styles.halfCell : undefined} testID="session-cell">
             {isAssistant ? (
