@@ -10,5 +10,5 @@ export interface LabMapProps {
 }
 
 export function LabMap(_props: LabMapProps) {
-  return <Notice message="Peta interaktif tersedia di aplikasi mobile." />;
+  return <Notice message="Peta interaktif tersedia di aplikasi mobile. Pilih lab dari daftar untuk melihat aktivitasnya." />;
 }

@@ -16,6 +16,15 @@
   //      "collectionGroup": "widgets",
   //      "fieldPath": "baz",
   //      "indexes": [
+    {
+      "collectionGroup": "labActivities",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "labId", "order": "ASCENDING" },
+        { "fieldPath": "endsAt", "order": "ASCENDING" },
+        { "fieldPath": "startsAt", "order": "ASCENDING" }
+      ]
+    },
   //        { "order": "ASCENDING", "queryScope": "COLLECTION" }
   //      ]
   //    },
