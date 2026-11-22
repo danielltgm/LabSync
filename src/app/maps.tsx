@@ -8,12 +8,14 @@ import { ActionRow, Button, LoadingLine } from '@/components/common/ui';
 import { LabMap } from '@/components/maps/LabMap';
 import { LabSyncColors, LabSyncTypography } from '@/constants/labsync-theme';
 import { useLabs } from '@/hooks/use-lab-map';
+import { useMapLocation } from '@/hooks/use-map-location';
 import type { LabId } from '@/types/sprint3';
 
 export default function MapsScreen() {
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState !== 'background' && AppState.currentState !== 'inactive');
   const [selected, setSelected] = useState<LabId | null>(null);
+  const [locationRetry, setLocationRetry] = useState(0);
   useEffect(() => {
     const listener = AppState.addEventListener('change', (state) => setForeground(state === 'active'));
     return () => listener.remove();
@@ -21,6 +23,7 @@ export default function MapsScreen() {
 
   const active = focused && foreground;
   const labs = useLabs(active);
+  const location = useMapLocation(active, locationRetry > 0, locationRetry);
   const markers = labs.labs.flatMap((lab) => lab.coordinates ? [{ ...lab, coordinates: lab.coordinates }] : []);
 
   return (
@@ -30,7 +33,9 @@ export default function MapsScreen() {
           <Button compact variant="quiet" label="Kembali" onPress={() => router.canGoBack() ? router.back() : router.replace('/')} />
         </ActionRow>
         <Text accessibilityRole="header" style={styles.title}>Peta laboratorium</Text>
-        <LabMap markers={markers} selected={selected} onSelect={setSelected} />
+        <LabMap markers={markers} location={location.coordinates} selected={selected} onSelect={setSelected} />
+        <ActionRow><Button compact label={locationRetry > 0 ? 'Perbarui lokasi' : 'Tampilkan lokasi saya'}
+          onPress={() => setLocationRetry((value) => value + 1)} /></ActionRow>
         {labs.loading && <LoadingLine label="Memuat lab…" />}
         <Text accessibilityRole="header" style={styles.subtitle}>Pilih laboratorium</Text>
         <View style={styles.choices}>
