@@ -19,8 +19,8 @@ import { cn } from '@/lib/utils';
 
 const ROLE: Record<Role, { label: string; tone: Tone }> = {
   PRAKTIKAN: { label: 'Praktikan', tone: 'neutral' },
-  ASISTEN: { label: 'Asisten', tone: 'brand' },
-  SUPERADMIN: { label: 'Koordinator', tone: 'warning' },
+  ASPRAK: { label: 'Asprak', tone: 'brand' },
+  ASLAB: { label: 'Aslab', tone: 'warning' },
 };
 
 type Tab = 'users' | 'assign' | 'requests';
@@ -40,17 +40,17 @@ export default function AdminConsole() {
       state.users
         .filter((u) => roleFilter === 'all' || u.role === roleFilter)
         .filter((u) => !query || u.name.toLowerCase().includes(query.toLowerCase()) || u.nim.includes(query))
-        .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === 'SUPERADMIN' ? -1 : a.role === 'ASISTEN' && b.role === 'PRAKTIKAN' ? -1 : 1)),
+        .sort((a, b) => (a.role === b.role ? a.name.localeCompare(b.name) : a.role === 'ASLAB' ? -1 : a.role === 'ASPRAK' && b.role === 'PRAKTIKAN' ? -1 : 1)),
     [state.users, roleFilter, query],
   );
-  const assistants = state.users.filter((u) => u.role === 'ASISTEN');
+  const assistants = state.users.filter((u) => u.role === 'ASPRAK');
   const requests = state.notifications.filter((n) => n.nim === me.nim && n.type === 'SYSTEM' && n.href === '/admin' && !n.readAt);
 
-  if (me.role !== 'SUPERADMIN') {
+  if (me.role !== 'ASLAB') {
     return (
       <Screen tabs>
         <TabTitle title="Pengguna" />
-        <EmptyState icon={ShieldCheck} title="Khusus koordinator lab" body="Halaman ini hanya untuk akun superadmin." />
+        <EmptyState icon={ShieldCheck} title="Khusus Aslab" body="Halaman ini hanya untuk akun Aslab." />
       </Screen>
     );
   }
@@ -164,7 +164,7 @@ export default function AdminConsole() {
                     <Button
                       className="flex-1 rounded-xl"
                       onPress={() => {
-                        if (candidate) setRole(candidate.nim, 'ASISTEN');
+                        if (candidate) setRole(candidate.nim, 'ASPRAK');
                         markRead(r.id);
                         toast({ title: `${candidate?.name} sekarang asisten`, body: 'Tugaskan ke kelas di tab Penugasan.', tone: 'success' });
                       }}
@@ -300,7 +300,7 @@ function AddAssistantDialog({ open, onClose, onSave, existing }: { open: boolean
             className="h-11 rounded-xl"
             disabled={!valid}
             onPress={() => {
-              onSave(found ? { ...found, role: 'ASISTEN' } : { nim, name: name.trim(), email: email.trim().toLowerCase(), role: 'ASISTEN' }, !found);
+              onSave(found ? { ...found, role: 'ASPRAK' } : { nim, name: name.trim(), email: email.trim().toLowerCase(), role: 'ASPRAK' }, !found);
               setNim('');
               setName('');
               setEmail('');

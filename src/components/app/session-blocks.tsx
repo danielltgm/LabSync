@@ -28,7 +28,7 @@ export function SessionHero({
   session: SessionView;
   now: number;
   record?: Attendance;
-  role: 'PRAKTIKAN' | 'ASISTEN';
+  role: 'PRAKTIKAN' | 'ASPRAK';
   checkedInCount?: number;
   rosterSize?: number;
 }) {
@@ -79,7 +79,7 @@ export function SessionHero({
           <Text className={cn('text-sm font-medium opacity-80', fg)}>Pertemuan {session.meetingNo} dari 12</Text>
         </Pressable>
         <View className="-mb-2 -mr-2">
-          <Mascot mood={live ? (role === 'ASISTEN' ? 'clipboard' : record ? 'happy' : 'scan') : 'waiting'} size={112} />
+          <Mascot mood={live ? (role === 'ASPRAK' ? 'clipboard' : record ? 'happy' : 'scan') : 'waiting'} size={112} />
         </View>
       </View>
 
@@ -88,7 +88,7 @@ export function SessionHero({
         <HeroMeta icon={MapPin} label={`${session.lab.code} · ${session.lab.name}`} fg={fg} />
       </View>
 
-      {role === 'ASISTEN' && rosterSize ? (
+      {role === 'ASPRAK' && rosterSize ? (
         <View className="mt-4 gap-2">
           <View className="flex-row items-end justify-between">
             <Text className={cn('font-display text-3xl font-extrabold', fg)}>

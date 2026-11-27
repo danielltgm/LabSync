@@ -40,10 +40,10 @@ export default function NewClass() {
     () => new Set(state.classes.filter((c) => c.courseId === courseId && !newCourse).map((c) => c.label)),
     [state.classes, courseId, newCourse],
   );
-  const staff = useMemo(() => state.users.filter((u) => u.role === 'ASISTEN'), [state.users]);
+  const staff = useMemo(() => state.users.filter((u) => u.role === 'ASPRAK'), [state.users]);
   const pupils = useMemo(() => state.users.filter((u) => u.role === 'PRAKTIKAN'), [state.users]);
 
-  if (me.role !== 'SUPERADMIN') {
+  if (me.role !== 'ASLAB') {
     return (
       <Screen header={<PageHeader title="Kelas baru" />}>
         <EmptyState icon={ShieldCheck} title="Khusus koordinator lab" />

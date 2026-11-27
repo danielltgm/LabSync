@@ -3,7 +3,7 @@ import type { LeaveCategory } from '@/firebase/ai-classifier';
 // Domain model for the Sprint 3 UI. Identity is keyed by NIM (PM feedback: "uid pake nim").
 // Timestamps are epoch milliseconds so the same shapes work for demo state and Firestore Timestamps.
 
-export type Role = 'PRAKTIKAN' | 'ASISTEN' | 'SUPERADMIN';
+export type Role = 'PRAKTIKAN' | 'ASPRAK' | 'ASLAB';
 
 export interface User {
   nim: string;
@@ -30,6 +30,9 @@ export interface Lab {
   photos: string[];
   /** Short directions, e.g. "Naik tangga utara, pintu kedua kiri". */
   directions?: string;
+  courseId?: string;
+  defaultLateAfterMin?: number;
+  defaultFineAmount?: number;
   updatedBy?: string;
   updatedAt?: number;
 }
@@ -77,6 +80,7 @@ export interface Session {
   endsAt: number;
   status: SessionStatus;
   lateAfterMin: number;
+  fineAmount?: number;
   materials: Material[];
   openedAt?: number;
   closedAt?: number;
@@ -102,6 +106,15 @@ export interface Attendance {
 
 export type { LeaveCategory };
 export type LeaveDecision = 'pending' | 'approved' | 'rejected';
+export type SentimentLabel = 'positif' | 'negatif' | 'netral';
+
+export interface LeaveSentiment {
+  label?: SentimentLabel;
+  score?: number;
+  status: 'ok' | 'unavailable';
+  model: 'local-tfidf';
+  analyzedAt: number;
+}
 
 export interface LeaveRequest {
   id: string;
@@ -109,6 +122,7 @@ export interface LeaveRequest {
   nim: string;
   /** Set by the AI classifier after submit (Sprint 2 contract: the student can't pick it). Undefined = not classified yet. */
   category?: LeaveCategory;
+  sentiment?: LeaveSentiment;
   reason: string;
   attachmentName?: string;
   submittedAt: number;
@@ -118,12 +132,53 @@ export interface LeaveRequest {
   reviewNote?: string;
 }
 
+export type FineStatus = 'unpaid' | 'pending' | 'paid' | 'waived';
+export type PaymentStatus = 'pending' | 'success' | 'failed';
+
+export interface Fine {
+  /** Deterministic `${sessionId}__${nim}` (at most 1 bill per lateness event). */
+  id: string;
+  nim: string;
+  sessionId: string;
+  classId: string;
+  attendanceId: string;
+  amount: number;
+  status: FineStatus;
+  createdAt: number;
+  paidAt?: number;
+  waivedAt?: number;
+  waivedReason?: string;
+  latestOrderId?: string;
+}
+
+export interface PaymentTransaction {
+  /** Unique Midtrans order_id. */
+  id: string;
+  fineId: string;
+  nim: string;
+  sessionId: string;
+  classId: string;
+  amount: number;
+  status: PaymentStatus;
+  snapToken?: string;
+  redirectUrl?: string;
+  paymentType?: string;
+  midtransTransactionId?: string;
+  midtransStatus?: string;
+  createdAt: number;
+  updatedAt: number;
+  paidAt?: number;
+}
+
 export type NotificationType =
   | 'SESSION_OPENED'
   | 'SCHEDULE_CHANGED'
   | 'LEAVE_APPROVED'
   | 'LEAVE_REJECTED'
   | 'LEAVE_SUBMITTED'
+  | 'FINE_CREATED'
+  | 'PAYMENT_SUCCESS'
+  | 'PAYMENT_FAILED'
   | 'REMINDER'
   | 'SYSTEM';
 

@@ -9,10 +9,12 @@ import type {
   CheckInAttempt,
   ClassGroup,
   Course,
+  Fine,
   Grades,
   Lab,
   LeaveRequest,
   NavSlot,
+  PaymentTransaction,
   Quiz,
   QuizAttempt,
   Session,
@@ -33,6 +35,8 @@ export interface DemoState {
   sessions: Session[];
   attendance: Attendance[];
   leaves: LeaveRequest[];
+  fines: Fine[];
+  payments: PaymentTransaction[];
   notifications: AppNotification[];
   attempts: CheckInAttempt[];
   assignments: Assignment[];
@@ -51,8 +55,8 @@ export const DEMO_VERSION = 6;
 
 export const DEMO_ACCOUNTS = {
   praktikan: '24060124120001',
-  asisten: '24060122130045',
-  admin: '197905102006041001',
+  asprak: '24060122130045',
+  aslab: '197905102006041001',
 } as const;
 
 /** Gedung E FSM UNDIP, building reference point (Plus Code 6P4GXC2R+P82). */
@@ -114,6 +118,8 @@ export function createDemoState(now = Date.now()): DemoState {
     radiusM: 45,
     maxAccuracyM: 40,
     capacity: 40,
+    defaultLateAfterMin: 15,
+    defaultFineAmount: 10_000,
     facilities: ['PC praktikum', 'Proyektor'],
     photos: [],
   });
@@ -135,10 +141,10 @@ export function createDemoState(now = Date.now()): DemoState {
     angkatan: 2024,
   }));
   const staff: User[] = [
-    { nim: DEMO_ACCOUNTS.asisten, name: 'Nadia Kusuma Putri', email: 'nadia@labsync.id', role: 'ASISTEN', angkatan: 2022, phone: '0812-3456-7890' },
-    { nim: '24060122140012', name: 'Fajar Ramadhan', email: 'fajar@labsync.id', role: 'ASISTEN', angkatan: 2022 },
-    { nim: '24060121130077', name: 'Salsabila Azzahra', email: 'salsa@labsync.id', role: 'ASISTEN', angkatan: 2021 },
-    { nim: DEMO_ACCOUNTS.admin, name: 'Dr. Hendra Wijaya', email: 'koordinator@labsync.id', role: 'SUPERADMIN' },
+    { nim: DEMO_ACCOUNTS.asprak, name: 'Nadia Kusuma Putri', email: 'nadia@labsync.id', role: 'ASPRAK', angkatan: 2022, phone: '0812-3456-7890' },
+    { nim: '24060122140012', name: 'Fajar Ramadhan', email: 'fajar@labsync.id', role: 'ASPRAK', angkatan: 2022 },
+    { nim: '24060121130077', name: 'Salsabila Azzahra', email: 'salsa@labsync.id', role: 'ASPRAK', angkatan: 2021 },
+    { nim: DEMO_ACCOUNTS.aslab, name: 'Dr. Hendra Wijaya', email: 'koordinator@labsync.id', role: 'ASLAB' },
   ];
   const users = [...students, ...staff];
   const classE = students.slice(0, 26).map((s) => s.nim);
@@ -146,7 +152,7 @@ export function createDemoState(now = Date.now()): DemoState {
 
   type Anchor = { start: number; durationMin: number; meetingNo: number; status?: Session['status'] };
   const plan: (Omit<ClassGroup, 'weekday' | 'startTime' | 'endTime'> & { anchor: Anchor })[] = [
-    { id: 'pab-e', courseId: 'pab', label: 'Kelas E', labId: 'lab-b', assistantNims: [DEMO_ACCOUNTS.asisten], studentNims: classE,
+    { id: 'pab-e', courseId: 'pab', label: 'Kelas E', labId: 'lab-b', assistantNims: [DEMO_ACCOUNTS.asprak], studentNims: classE,
       anchor: { start: roundTo5(now - 25 * MINUTE), durationMin: 120, meetingNo: 8, status: 'DIBUKA' } },
     { id: 'bd-e', courseId: 'bd', label: 'Kelas E', labId: 'lab-c', assistantNims: ['24060122140012'], studentNims: classE,
       anchor: { start: roundTo5(now + 3 * HOUR), durationMin: 100, meetingNo: 7 } },
@@ -154,9 +160,9 @@ export function createDemoState(now = Date.now()): DemoState {
       anchor: { start: roundTo5(now - 5 * HOUR), durationMin: 120, meetingNo: 7, status: 'SELESAI' } },
     { id: 'pbo-e', courseId: 'pbo', label: 'Kelas E', labId: 'lab-b', assistantNims: ['24060122140012'], studentNims: classE,
       anchor: { start: today + DAY + 13 * HOUR, durationMin: 100, meetingNo: 7 } },
-    { id: 'kb-e', courseId: 'kb', label: 'Kelas E', labId: 'lab-c', assistantNims: ['24060121130077', DEMO_ACCOUNTS.asisten], studentNims: classE,
+    { id: 'kb-e', courseId: 'kb', label: 'Kelas E', labId: 'lab-c', assistantNims: ['24060121130077', DEMO_ACCOUNTS.asprak], studentNims: classE,
       anchor: { start: today + 3 * DAY + 9 * HOUR, durationMin: 120, meetingNo: 7 } },
-    { id: 'pab-f', courseId: 'pab', label: 'Kelas F', labId: 'lab-d', assistantNims: [DEMO_ACCOUNTS.asisten], studentNims: classF,
+    { id: 'pab-f', courseId: 'pab', label: 'Kelas F', labId: 'lab-d', assistantNims: [DEMO_ACCOUNTS.asprak], studentNims: classF,
       anchor: { start: today + DAY + 8 * HOUR, durationMin: 120, meetingNo: 8 } },
   ];
 
@@ -267,7 +273,20 @@ export function createDemoState(now = Date.now()): DemoState {
     { id: `pab-e-p9__${classE[5]}`, sessionId: 'pab-e-p9', nim: classE[5], category: 'Keluarga', reason: 'Menghadiri pernikahan kakak di luar kota.', submittedAt: now - 3 * HOUR, decision: 'pending' },
     { id: `pab-e-p8__${classE[19]}`, sessionId: 'pab-e-p8', nim: classE[19], category: 'Sakit', reason: 'Sakit perut dan muntah sejak pagi, tidak kuat berangkat.', attachmentName: 'foto-resep.jpg', submittedAt: now - 2 * HOUR, decision: 'pending' },
     { id: `pab-f-p8__${classF[3]}`, sessionId: 'pab-f-p8', nim: classF[3], category: 'Akademik', reason: 'Ikut kegiatan BEM: kunjungan industri ke Jakarta.', submittedAt: now - 26 * HOUR, decision: 'pending' },
-    { id: `pab-e-p6__${classE[7]}`, sessionId: 'pab-e-p6', nim: classE[7], category: 'Lainnya', reason: 'Bangun kesiangan.', submittedAt: sessions.find((s) => s.id === 'pab-e-p6')!.startsAt + 10 * MINUTE, decision: 'rejected', reviewedBy: DEMO_ACCOUNTS.asisten, reviewedAt: sessions.find((s) => s.id === 'pab-e-p6')!.startsAt + 2 * HOUR, reviewNote: 'Alasan tidak memenuhi ketentuan izin.' },
+    { id: `pab-e-p6__${classE[7]}`, sessionId: 'pab-e-p6', nim: classE[7], category: 'Lainnya', reason: 'Bangun kesiangan.', submittedAt: sessions.find((s) => s.id === 'pab-e-p6')!.startsAt + 10 * MINUTE, decision: 'rejected', reviewedBy: DEMO_ACCOUNTS.asprak, reviewedAt: sessions.find((s) => s.id === 'pab-e-p6')!.startsAt + 2 * HOUR, reviewNote: 'Alasan tidak memenuhi ketentuan izin.' },
+  ];
+
+  const fines: Fine[] = [
+    { id: `jk-e-p5__${me}`, nim: me, sessionId: 'jk-e-p5', classId: 'jk-e', attendanceId: `jk-e-p5__${me}`, amount: 10_000, status: 'unpaid', createdAt: now - 14 * DAY },
+    { id: `pab-e-p6__${classE[1]}`, nim: classE[1], sessionId: 'pab-e-p6', classId: 'pab-e', attendanceId: `pab-e-p6__${classE[1]}`, amount: 10_000, status: 'paid', createdAt: now - 12 * DAY, paidAt: now - 11 * DAY, latestOrderId: 'LS-pab-e-p6-paid' },
+    { id: `pab-e-p7__${classE[2]}`, nim: classE[2], sessionId: 'pab-e-p7', classId: 'pab-e', attendanceId: `pab-e-p7__${classE[2]}`, amount: 10_000, status: 'pending', createdAt: now - 5 * DAY, latestOrderId: 'LS-pab-e-p7-pend' },
+    { id: `bd-e-p4__${classE[4]}`, nim: classE[4], sessionId: 'bd-e-p4', classId: 'bd-e', attendanceId: `bd-e-p4__${classE[4]}`, amount: 10_000, status: 'unpaid', createdAt: now - 2 * DAY, latestOrderId: 'LS-bd-e-p4-fail' },
+  ];
+
+  const payments: PaymentTransaction[] = [
+    { id: 'LS-pab-e-p6-paid', fineId: `pab-e-p6__${classE[1]}`, nim: classE[1], sessionId: 'pab-e-p6', classId: 'pab-e', amount: 10_000, status: 'success', paymentType: 'qris', createdAt: now - 11 * DAY - HOUR, updatedAt: now - 11 * DAY, paidAt: now - 11 * DAY },
+    { id: 'LS-pab-e-p7-pend', fineId: `pab-e-p7__${classE[2]}`, nim: classE[2], sessionId: 'pab-e-p7', classId: 'pab-e', amount: 10_000, status: 'pending', paymentType: 'bank_transfer', createdAt: now - 2 * HOUR, updatedAt: now - 2 * HOUR },
+    { id: 'LS-bd-e-p4-fail', fineId: `bd-e-p4__${classE[4]}`, nim: classE[4], sessionId: 'bd-e-p4', classId: 'bd-e', amount: 10_000, status: 'failed', paymentType: 'gopay', createdAt: now - DAY, updatedAt: now - DAY + 15 * MINUTE },
   ];
 
   const notifications: AppNotification[] = [
@@ -275,9 +294,9 @@ export function createDemoState(now = Date.now()): DemoState {
     { id: 'n-2', nim: me, type: 'SCHEDULE_CHANGED', title: 'Jadwal berubah · Kecerdasan Buatan', body: 'Pertemuan 7 mundur 1 jam karena lab dipakai ujian.', createdAt: now - 18 * HOUR, href: '/sesi/kb-e-p7' },
     { id: 'n-3', nim: me, type: 'REMINDER', title: 'Pengingat · Basis Data', body: 'Pertemuan 7 dimulai 3 jam lagi di Lab Informatika C.', createdAt: now - 10 * MINUTE, href: '/sesi/bd-e-p7' },
     { id: 'n-4', nim: me, type: 'LEAVE_APPROVED', title: 'Izin disetujui · Basis Data', body: 'Izin sakit untuk pertemuan 3 disetujui oleh Fajar Ramadhan.', createdAt: now - 30 * DAY, readAt: now - 29 * DAY, href: `/izin/bd-e-p3__${me}` },
-    { id: 'n-5', nim: DEMO_ACCOUNTS.asisten, type: 'LEAVE_SUBMITTED', title: 'Izin baru · Pemrograman Aplikasi Bergerak', body: `${STUDENT_NAMES[19]} mengajukan izin sakit untuk pertemuan 8.`, createdAt: now - 2 * HOUR, href: `/izin/pab-e-p8__${classE[19]}` },
-    { id: 'n-6', nim: DEMO_ACCOUNTS.asisten, type: 'LEAVE_SUBMITTED', title: 'Izin baru · Pemrograman Aplikasi Bergerak', body: `${STUDENT_NAMES[5]} mengajukan izin keluarga untuk pertemuan 9.`, createdAt: now - 3 * HOUR, href: `/izin/pab-e-p9__${classE[5]}` },
-    { id: 'n-7', nim: DEMO_ACCOUNTS.admin, type: 'SYSTEM', title: 'Permintaan akses asisten', body: 'Galih Ramadhan meminta akses asisten untuk Jaringan Komputer.', createdAt: now - 5 * HOUR, href: '/admin' },
+    { id: 'n-5', nim: DEMO_ACCOUNTS.asprak, type: 'LEAVE_SUBMITTED', title: 'Izin baru · Pemrograman Aplikasi Bergerak', body: `${STUDENT_NAMES[19]} mengajukan izin sakit untuk pertemuan 8.`, createdAt: now - 2 * HOUR, href: `/izin/pab-e-p8__${classE[19]}` },
+    { id: 'n-6', nim: DEMO_ACCOUNTS.asprak, type: 'LEAVE_SUBMITTED', title: 'Izin baru · Pemrograman Aplikasi Bergerak', body: `${STUDENT_NAMES[5]} mengajukan izin keluarga untuk pertemuan 9.`, createdAt: now - 3 * HOUR, href: `/izin/pab-e-p9__${classE[5]}` },
+    { id: 'n-7', nim: DEMO_ACCOUNTS.aslab, type: 'SYSTEM', title: 'Permintaan akses asprak', body: 'Galih Ramadhan meminta akses asprak untuk Jaringan Komputer.', createdAt: now - 5 * HOUR, href: '/admin' },
   ];
 
   // Grade book: three weighted items per class. The last one is not graded yet for most classes.
@@ -313,7 +332,7 @@ export function createDemoState(now = Date.now()): DemoState {
     requireAttendance: true,
     assignmentId: quizAssignment.id,
     status: 'DIBUKA',
-    createdBy: DEMO_ACCOUNTS.asisten,
+    createdBy: DEMO_ACCOUNTS.asprak,
     createdAt: live.startsAt - DAY,
     openedAt: now - 14 * MINUTE,
     questions: [
@@ -354,21 +373,21 @@ export function createDemoState(now = Date.now()): DemoState {
     overridden.status = 'IZIN';
     overridden.method = 'MANUAL';
     overridden.note = 'Surat sakit menyusul';
-    overridden.overriddenBy = DEMO_ACCOUNTS.asisten;
+    overridden.overriddenBy = DEMO_ACCOUNTS.asprak;
   }
   const revised = `pab-e-t2__${classE[1]}`;
   grades[revised] = 85;
   const nameOf = (nim: string) => users.find((u) => u.nim === nim)?.name ?? nim;
   const drafts: AuditDraft[] = [
-    { at: now - 32 * DAY, actor: DEMO_ACCOUNTS.admin, actorRole: 'SUPERADMIN', kind: 'KELAS', classId: 'pab-e', target: 'Pemrograman Aplikasi Bergerak · Kelas E', summary: 'Membuat kelas dengan 12 pertemuan', changes: [{ label: 'Asisten', to: nameOf(DEMO_ACCOUNTS.asisten) }, { label: 'Praktikan', to: `${classE.length} orang` }] },
-    { at: sessions.find((s) => s.id === 'bd-e-p3')!.startsAt - 2 * HOUR, actor: '24060122140012', actorRole: 'ASISTEN', kind: 'IZIN', classId: 'bd-e', target: `${nameOf(me)} · Pertemuan 3`, summary: 'Menyetujui izin sakit', changes: [{ label: 'Keputusan', from: 'Menunggu', to: 'Disetujui' }] },
-    { at: sessions.find((s) => s.id === 'pab-e-p6')!.startsAt + 2 * HOUR, actor: DEMO_ACCOUNTS.asisten, actorRole: 'ASISTEN', kind: 'IZIN', classId: 'pab-e', target: `${nameOf(classE[7])} · Pertemuan 6`, summary: 'Menolak izin', changes: [{ label: 'Keputusan', from: 'Menunggu', to: 'Ditolak' }], reason: 'Alasan tidak memenuhi ketentuan izin.' },
-    { at: now - 9 * DAY, actor: DEMO_ACCOUNTS.asisten, actorRole: 'ASISTEN', kind: 'NILAI', classId: 'pab-e', target: 'Laporan praktikum', summary: `Mengisi ${classE.length} nilai`, changes: [{ label: 'Laporan praktikum', from: 'kosong', to: `${classE.length} nilai` }] },
-    { at: now - 6 * DAY, actor: DEMO_ACCOUNTS.asisten, actorRole: 'ASISTEN', kind: 'PRESENSI', classId: 'pab-e', target: `${nameOf(classE[3])} · Pertemuan 7`, summary: 'Mengubah status presensi', changes: [{ label: 'Status', from: overriddenFrom, to: 'IZIN' }], reason: 'Surat sakit menyusul' },
-    { at: now - 2 * DAY, actor: DEMO_ACCOUNTS.asisten, actorRole: 'ASISTEN', kind: 'NILAI', classId: 'pab-e', target: `${nameOf(classE[1])} · Laporan praktikum`, summary: 'Mengubah nilai', changes: [{ label: 'Laporan praktikum', from: '78', to: '85' }], reason: 'Revisi laporan diterima' },
-    { at: now - 1 * DAY, actor: DEMO_ACCOUNTS.admin, actorRole: 'SUPERADMIN', kind: 'LAB', target: 'Lab Informatika B, C, D', summary: 'Memperbarui koordinat ke patokan Gedung E', changes: [{ label: 'Titik', to: `${GEDUNG_E.lat.toFixed(5)}, ${GEDUNG_E.lng.toFixed(5)}` }], reason: 'Koordinat presisi per ruangan belum tersedia.' },
-    { at: quiz.createdAt, actor: DEMO_ACCOUNTS.asisten, actorRole: 'ASISTEN', kind: 'KUIS', classId: 'pab-e', target: quiz.title, summary: 'Membuat kuis 5 soal', changes: [{ label: 'Masuk penilaian', to: 'Kuis P8 · 10%' }] },
-    { at: opened, actor: DEMO_ACCOUNTS.asisten, actorRole: 'ASISTEN', kind: 'KUIS', classId: 'pab-e', target: quiz.title, summary: 'Membuka kuis', changes: [{ label: 'Status', from: 'Draft', to: 'Dibuka' }] },
+    { at: now - 32 * DAY, actor: DEMO_ACCOUNTS.aslab, actorRole: 'ASLAB', kind: 'KELAS', classId: 'pab-e', target: 'Pemrograman Aplikasi Bergerak · Kelas E', summary: 'Membuat kelas dengan 12 pertemuan', changes: [{ label: 'Asprak', to: nameOf(DEMO_ACCOUNTS.asprak) }, { label: 'Praktikan', to: `${classE.length} orang` }] },
+    { at: sessions.find((s) => s.id === 'bd-e-p3')!.startsAt - 2 * HOUR, actor: '24060122140012', actorRole: 'ASPRAK', kind: 'IZIN', classId: 'bd-e', target: `${nameOf(me)} · Pertemuan 3`, summary: 'Menyetujui izin sakit', changes: [{ label: 'Keputusan', from: 'Menunggu', to: 'Disetujui' }] },
+    { at: sessions.find((s) => s.id === 'pab-e-p6')!.startsAt + 2 * HOUR, actor: DEMO_ACCOUNTS.asprak, actorRole: 'ASPRAK', kind: 'IZIN', classId: 'pab-e', target: `${nameOf(classE[7])} · Pertemuan 6`, summary: 'Menolak izin', changes: [{ label: 'Keputusan', from: 'Menunggu', to: 'Ditolak' }], reason: 'Alasan tidak memenuhi ketentuan izin.' },
+    { at: now - 9 * DAY, actor: DEMO_ACCOUNTS.asprak, actorRole: 'ASPRAK', kind: 'NILAI', classId: 'pab-e', target: 'Laporan praktikum', summary: `Mengisi ${classE.length} nilai`, changes: [{ label: 'Laporan praktikum', from: 'kosong', to: `${classE.length} nilai` }] },
+    { at: now - 6 * DAY, actor: DEMO_ACCOUNTS.asprak, actorRole: 'ASPRAK', kind: 'PRESENSI', classId: 'pab-e', target: `${nameOf(classE[3])} · Pertemuan 7`, summary: 'Mengubah status presensi', changes: [{ label: 'Status', from: overriddenFrom, to: 'IZIN' }], reason: 'Surat sakit menyusul' },
+    { at: now - 2 * DAY, actor: DEMO_ACCOUNTS.asprak, actorRole: 'ASPRAK', kind: 'NILAI', classId: 'pab-e', target: `${nameOf(classE[1])} · Laporan praktikum`, summary: 'Mengubah nilai', changes: [{ label: 'Laporan praktikum', from: '78', to: '85' }], reason: 'Revisi laporan diterima' },
+    { at: now - 1 * DAY, actor: DEMO_ACCOUNTS.aslab, actorRole: 'ASLAB', kind: 'LAB', target: 'Lab Informatika B, C, D', summary: 'Memperbarui koordinat ke patokan Gedung E', changes: [{ label: 'Titik', to: `${GEDUNG_E.lat.toFixed(5)}, ${GEDUNG_E.lng.toFixed(5)}` }], reason: 'Koordinat presisi per ruangan belum tersedia.' },
+    { at: quiz.createdAt, actor: DEMO_ACCOUNTS.asprak, actorRole: 'ASPRAK', kind: 'KUIS', classId: 'pab-e', target: quiz.title, summary: 'Membuat kuis 5 soal', changes: [{ label: 'Masuk penilaian', to: 'Kuis P8 · 10%' }] },
+    { at: opened, actor: DEMO_ACCOUNTS.asprak, actorRole: 'ASPRAK', kind: 'KUIS', classId: 'pab-e', target: quiz.title, summary: 'Membuka kuis', changes: [{ label: 'Status', from: 'Draft', to: 'Dibuka' }] },
   ];
   const log = drafts.sort((a, b) => (a.at ?? 0) - (b.at ?? 0)).reduce<AuditEntry[]>((acc, d) => appendLog(acc, d), []);
 
@@ -381,6 +400,8 @@ export function createDemoState(now = Date.now()): DemoState {
     sessions,
     attendance,
     leaves,
+    fines,
+    payments,
     notifications,
     attempts,
     assignments,

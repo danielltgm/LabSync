@@ -26,7 +26,7 @@ const KEY = join(ROOT, '.secrets', 'firebase-admin.json');
 const PROJECT = 'labsync-sprint2-dev';
 const COLLECTIONS = [
   'users', 'labs', 'labPhotos', 'courses', 'classes', 'sessions', 'attendance', 'leaves', 'checkinAttempts', 'notifications',
-  'assignments', 'grades', 'log', 'quizzes', 'quizKeys', 'quizAttempts', 'sessionSecrets', 'meta',
+  'fines', 'payments', 'assignments', 'grades', 'log', 'quizzes', 'quizKeys', 'quizAttempts', 'sessionSecrets', 'meta',
   // Sprint 2 leftovers
   'enrollments', 'leaveRequests',
 ];
@@ -99,6 +99,8 @@ async function seed() {
   for (const l of s.leaves) put(`leaves/${l.id}`, { ...l, classId: sessionClass.get(l.sessionId), staffNims: staff(sessionClass.get(l.sessionId)) });
   for (const a of s.attempts) put(`checkinAttempts/${a.id}`, { ...a, classId: sessionClass.get(a.sessionId), staffNims: staff(sessionClass.get(a.sessionId)) });
   for (const n of s.notifications) put(`notifications/${n.id}`, n);
+  for (const f of s.fines) put(`fines/${f.id}`, f);
+  for (const p of s.payments) put(`payments/${p.id}`, p);
   for (const [key, score] of Object.entries(s.grades)) {
     const [assignmentId, nim] = key.split('__');
     const classId = s.assignments.find((a) => a.id === assignmentId)?.classId;

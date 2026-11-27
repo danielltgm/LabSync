@@ -21,7 +21,7 @@ export default function LogScreen() {
   const { state, toast } = useStore();
   const me = useMe();
   const classes = useMyClasses();
-  const isAdmin = me.role === 'SUPERADMIN';
+  const isAdmin = me.role === 'ASLAB';
   const [kind, setKind] = useState<LogKind | 'all'>('all');
   const [classId, setClassId] = useState<string>('all');
   const [query, setQuery] = useState('');

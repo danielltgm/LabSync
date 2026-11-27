@@ -5,6 +5,7 @@ import type { DemoState } from '@/data/demo-seed';
 import type { AuditEntry, ClassGroup, Quiz, Role, User } from '@/data/types';
 import { classifyReason } from '@/server/classify-leave';
 import { getAdminApp, getAuth, getFirestore } from '@/server/firebase-admin';
+import { analyzeLeaveSentiment } from '@/server/sentiment-tfidf';
 
 /*
  * POST /api/act  { action, args }  with  Authorization: Bearer <Firebase ID token>
@@ -27,10 +28,10 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 /** Collections that hold class-scoped records and carry `classId` + `staffNims`. */
 const CLASS_SCOPED = ['attendance', 'leaves', 'checkinAttempts', 'grades', 'log', 'quizzes', 'quizKeys', 'quizAttempts', 'sessionSecrets'] as const;
 
-/** Actions any signed-in member may run on themselves. Everything else needs staff of the class. */
+/** Actions any signed-in member may run on themselves. */
 const STUDENT_ACTIONS = new Set<ActionName>(['checkIn', 'submitLeave', 'startQuiz', 'reportViolation', 'submitQuiz']);
-/** Koordinator-only actions. */
-const ADMIN_ACTIONS = new Set<ActionName>(['setRole', 'addUser', 'setClassAssistant', 'createClass', 'deleteLab']);
+/** Operational actions allowed for ASPRAK on their assigned classes; all management requires ASLAB. */
+const ASPRAK_ACTIONS = new Set<ActionName>(['openSession', 'closeSession', 'overrideAttendance', 'reviewLeave']);
 /** Handled by the client directly under Firestore rules; not accepted here. */
 const CLIENT_ACTIONS = new Set<ActionName>(['markRead', 'markAllRead', 'setNavSlots', 'answerQuiz']);
 
@@ -53,6 +54,8 @@ function emptyState(): DemoState {
     sessions: [],
     attendance: [],
     leaves: [],
+    fines: [],
+    payments: [],
     notifications: [],
     attempts: [],
     assignments: [],
@@ -73,12 +76,14 @@ const strip = <T extends Doc>(d: T) => {
 /** What an action needs loaded, derived from its arguments. */
 interface Plan {
   classId?: string;
+  extraClassIds?: string[];
   sessionId?: string;
   leaveId?: string;
   quizId?: string;
   nims: string[];
   attendance?: boolean;
   leaves?: boolean;
+  fines?: boolean;
   grades?: boolean;
   quizAttempts?: boolean;
   allCourses?: boolean;
@@ -95,7 +100,7 @@ async function resolvePlan(tx: Tx, db: Db, action: ActionName, args: unknown[]):
   switch (action) {
     case 'checkIn': {
       const sessionId = str((a0 as { sessionId?: string })?.sessionId);
-      return { ...plan, sessionId, classId: sessionId && (await classOfSession(sessionId)), attendance: true };
+      return { ...plan, sessionId, classId: sessionId && (await classOfSession(sessionId)), attendance: true, fines: true };
     }
     case 'openSession':
     case 'updateSession':
@@ -111,7 +116,7 @@ async function resolvePlan(tx: Tx, db: Db, action: ActionName, args: unknown[]):
     case 'reviewLeave': {
       const leave = await tx.get(db.doc(`leaves/${String(a0)}`));
       const sessionId = leave.get('sessionId') as string | undefined;
-      return { ...plan, leaveId: String(a0), sessionId, classId: leave.get('classId'), attendance: true, leaves: true, nims: [leave.get('nim')] };
+      return { ...plan, leaveId: String(a0), sessionId, classId: leave.get('classId'), attendance: true, leaves: true, fines: true, nims: [leave.get('nim')] };
     }
     case 'createSessions':
     case 'addAssignment':
@@ -161,6 +166,21 @@ async function resolvePlan(tx: Tx, db: Db, action: ActionName, args: unknown[]):
     case 'saveLab':
     case 'deleteLab':
       return plan;
+    case 'transferStudent': {
+      const input = a0 as { fromClassId?: string; toClassId?: string; nims?: string[] };
+      const to = str(input?.toClassId);
+      return { ...plan, classId: str(input?.fromClassId), extraClassIds: to ? [to] : [], nims: input?.nims ?? [] };
+    }
+    case 'bulkInsertLabs':
+      return { ...plan, allCourses: true };
+    case 'bulkInsertStudents': {
+      const input = a0 as { classId?: string; students?: { nim: string }[] };
+      return { ...plan, classId: str(input?.classId), nims: (input?.students ?? []).map((x) => x.nim) };
+    }
+    case 'bulkInsertAssistants': {
+      const input = a0 as { classId?: string; assistants?: { nim: string }[] };
+      return { ...plan, classId: str(input?.classId), nims: (input?.assistants ?? []).map((x) => x.nim) };
+    }
     default:
       throw new HttpError(400, 'unknown_action');
   }
@@ -202,6 +222,15 @@ async function load(tx: Tx, db: Db, plan: Plan, meNim: string) {
     s.qrSecrets = Object.fromEntries(secrets.docs.map((d) => [d.id, String(d.get('secret'))]));
     loaded.add('qrSecrets');
   }
+  if (plan.extraClassIds?.length) {
+    for (const extraId of plan.extraClassIds) {
+      if (extraId === plan.classId) continue;
+      const ec = await tx.get(db.doc(`classes/${extraId}`));
+      if (!ec.exists) throw new HttpError(404, 'class_not_found');
+      s.classes.push({ ...(ec.data() as ClassGroup), id: ec.id });
+      loaded.add('classes');
+    }
+  }
   if (plan.allCourses) {
     s.courses = docs(await tx.get(db.collection('courses'))) as unknown as DemoState['courses'];
     loaded.add('courses');
@@ -217,6 +246,10 @@ async function load(tx: Tx, db: Db, plan: Plan, meNim: string) {
     const q = plan.leaveId ? await tx.get(db.collection('leaves').where('__name__', '==', db.doc(`leaves/${plan.leaveId}`))) : await tx.get(db.collection('leaves').where('sessionId', '==', plan.sessionId ?? ''));
     s.leaves = docs(q).map(strip) as unknown as DemoState['leaves'];
     loaded.add('leaves');
+  }
+  if (plan.fines && plan.sessionId) {
+    s.fines = docs(await tx.get(db.collection('fines').where('sessionId', '==', plan.sessionId))) as unknown as DemoState['fines'];
+    loaded.add('fines');
   }
   if (plan.grades && cls) {
     const g = await tx.get(db.collection('grades').where('classId', '==', cls.id));
@@ -243,17 +276,15 @@ async function load(tx: Tx, db: Db, plan: Plan, meNim: string) {
   return { state: s, before: JSON.parse(JSON.stringify(s)) as DemoState, loaded, cls };
 }
 
-function authorize(action: ActionName, me: User, cls: ClassGroup | undefined) {
+export function authorize(action: ActionName, me: User, cls: ClassGroup | undefined) {
   if (CLIENT_ACTIONS.has(action)) throw new HttpError(400, 'client_action');
-  if (me.role === 'SUPERADMIN') return;
-  if (ADMIN_ACTIONS.has(action)) throw new HttpError(403, 'forbidden');
+  if (me.role === 'ASLAB') return;
   if (STUDENT_ACTIONS.has(action)) {
     // Students act on themselves, in classes they belong to (the actions use the caller's NIM).
     if (me.role === 'PRAKTIKAN' && cls && !cls.studentNims.includes(me.nim)) throw new HttpError(403, 'not_member');
     return;
   }
-  if (me.role !== 'ASISTEN') throw new HttpError(403, 'forbidden');
-  if (action === 'saveLab') return; // asisten may adjust room radius/photos, as in the UI
+  if (me.role !== 'ASPRAK' || !ASPRAK_ACTIONS.has(action)) throw new HttpError(403, 'forbidden');
   if (!cls || !cls.assistantNims.includes(me.nim)) throw new HttpError(403, 'not_class_staff');
 }
 
@@ -286,6 +317,8 @@ function writeChanges(tx: Tx, db: Db, before: DemoState, after: DemoState, loade
   syncList('assignments', 'assignments');
   syncList<{ id: string; sessionId: string }>('attendance', 'attendance', (a) => ({ classId: sessionClass.get(a.sessionId), staffNims: staffOf(sessionClass.get(a.sessionId)) }));
   syncList<{ id: string; sessionId: string }>('leaves', 'leaves', (l) => ({ classId: sessionClass.get(l.sessionId), staffNims: staffOf(sessionClass.get(l.sessionId)) }));
+  syncList('fines', 'fines');
+  syncList('payments', 'payments');
   syncList<{ id: string; sessionId: string }>('attempts', 'checkinAttempts', (a) => ({ classId: sessionClass.get(a.sessionId), staffNims: staffOf(sessionClass.get(a.sessionId)) }));
   syncList<{ id: string; quizId: string }>('quizAttempts', 'quizAttempts', (a) => ({ classId: quizClass.get(a.quizId), staffNims: staffOf(quizClass.get(a.quizId)) }));
 
@@ -428,11 +461,18 @@ export async function handleAct(request: Request) {
           });
       }
     }
-    // Leave requests start with the keyword category; refine it with Gemini when configured.
+    // Leave requests start with keyword category; enrich with AI category + local TF-IDF sentiment.
     if (action === 'submitLeave' && typeof outcome.result === 'string') {
       const reason = String((args[0] as { reason?: string })?.reason ?? '');
-      const category = await classifyReason(reason).catch(() => null);
-      if (category) await db.doc(`leaves/${outcome.result}`).update({ category }).catch(() => undefined);
+      const [category, sentiment] = await Promise.all([
+        classifyReason(reason).catch(() => null),
+        Promise.resolve()
+          .then(() => analyzeLeaveSentiment(reason))
+          .catch(() => ({ status: 'unavailable' as const, model: 'local-tfidf' as const, analyzedAt: Date.now() })),
+      ]);
+      const patch: Doc = { sentiment };
+      if (category) patch.category = category;
+      await db.doc(`leaves/${outcome.result}`).update(patch).catch(() => undefined);
     }
     return json({ result: outcome.result ?? null });
   } catch (e) {

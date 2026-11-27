@@ -20,8 +20,8 @@ import { cn } from '@/lib/utils';
 
 export const ROLE_STYLE: Record<Role, { label: string; icon: typeof User; bg: string; fg: string; ring: string }> = {
   PRAKTIKAN: { label: 'Praktikan', icon: GraduationCap, bg: 'bg-coral', fg: 'text-on-bright', ring: 'border-coral' },
-  ASISTEN: { label: 'Asisten', icon: UserCog, bg: 'bg-violet', fg: 'text-white', ring: 'border-violet' },
-  SUPERADMIN: { label: 'Koordinator', icon: ShieldCheck, bg: 'bg-mustard', fg: 'text-on-bright', ring: 'border-mustard' },
+  ASPRAK: { label: 'Asprak', icon: UserCog, bg: 'bg-violet', fg: 'text-white', ring: 'border-violet' },
+  ASLAB: { label: 'Aslab', icon: ShieldCheck, bg: 'bg-mustard', fg: 'text-on-bright', ring: 'border-mustard' },
 };
 
 /** Big, coloured "who am I" pill (same colours as the demo account cards on login). */
@@ -40,6 +40,7 @@ export function RoleBadge({ role, size = 'md' }: { role: Role; size?: 'sm' | 'md
 const SHORTCUT_TONE: Record<string, Tone> = {
   jadwal: 'brand', presensi: 'danger', kelas: 'brand', izin: 'warning', admin: 'danger', peta: 'info', log: 'neutral',
   'izin-baru': 'warning', riwayat: 'success', lab: 'info', notifikasi: 'brand', 'sesi-baru': 'success', 'kelas-baru': 'success',
+  denda: 'danger', 'denda-riwayat': 'info', 'dashboard-lab': 'brand', 'lab-transfer': 'warning',
 };
 
 /** "Pintasan": everything that is not in the bottom bar, plus the bar customizer. */

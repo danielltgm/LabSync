@@ -50,7 +50,7 @@ function classSubtitle(cls: ClassGroup, labName?: string) {
 function StaffClass({ cls }: { cls: ClassGroup }) {
   const { state, enroll, unenroll, setClassAssistant, toast } = useStore();
   const me = useMe();
-  const isAdmin = me.role === 'SUPERADMIN';
+  const isAdmin = me.role === 'ASLAB';
   const [tab, setTab] = useState<Tab>('pertemuan');
   const [query, setQuery] = useState('');
   const [adding, setAdding] = useState<'praktikan' | 'asisten' | null>(null);
@@ -388,7 +388,7 @@ function AddMembersDialog({
     setPicked([]);
   }
   const isStaff = kind === 'asisten';
-  const candidates = useMemo(() => state.users.filter((u) => u.role === (isStaff ? 'ASISTEN' : 'PRAKTIKAN')), [state.users, isStaff]);
+  const candidates = useMemo(() => state.users.filter((u) => u.role === (isStaff ? 'ASPRAK' : 'PRAKTIKAN')), [state.users, isStaff]);
   const taken = useMemo(() => new Set(isStaff ? cls.assistantNims : cls.studentNims), [cls, isStaff]);
   return (
     <Dialog open={!!kind} onOpenChange={(o) => !o && onClose()}>

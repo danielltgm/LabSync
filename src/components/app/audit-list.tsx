@@ -26,7 +26,7 @@ export const LOG_KIND: Record<LogKind, { label: string; icon: LucideIcon; tone: 
   KUIS: { label: 'Kuis', icon: ListChecks, tone: 'info' },
 };
 
-export const ROLE_LABEL: Record<Role, string> = { PRAKTIKAN: 'Praktikan', ASISTEN: 'Asisten', SUPERADMIN: 'Koordinator' };
+export const ROLE_LABEL: Record<Role, string> = { PRAKTIKAN: 'Praktikan', ASPRAK: 'Asprak', ASLAB: 'Aslab' };
 
 /** Integrity of the whole chain (any edit or removal anywhere breaks it). */
 export function LogIntegrity() {

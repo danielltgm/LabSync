@@ -18,7 +18,7 @@ export default function ClassList() {
   const { state } = useStore();
   const me = useMe();
   const classes = useMyClasses();
-  const isAdmin = me.role === 'SUPERADMIN';
+  const isAdmin = me.role === 'ASLAB';
   const isStudent = me.role === 'PRAKTIKAN';
   const [course, setCourse] = useState<string>('all');
   const shown = classes.filter((c) => course === 'all' || c.courseId === course);

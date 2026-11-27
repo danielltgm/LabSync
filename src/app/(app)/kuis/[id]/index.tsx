@@ -32,7 +32,7 @@ export default function QuizPage() {
     );
   }
   const cls = state.classes.find((c) => c.id === quiz.classId)!;
-  const isStaff = me.role === 'SUPERADMIN' || cls.assistantNims.includes(me.nim);
+  const isStaff = me.role === 'ASLAB' || cls.assistantNims.includes(me.nim);
   return isStaff ? <StaffQuiz quiz={quiz} /> : <StudentQuiz quiz={quiz} />;
 }
 
