@@ -107,12 +107,14 @@ export interface Attendance {
 export type { LeaveCategory };
 export type LeaveDecision = 'pending' | 'approved' | 'rejected';
 export type SentimentLabel = 'positif' | 'negatif' | 'netral';
+export type SentimentStatus = 'predicted' | 'unknown_vocabulary' | 'empty_input' | 'unavailable';
 
 export interface LeaveSentiment {
-  label?: SentimentLabel;
+  /** null on empty_input, unknown_vocabulary, or unavailable — never treat null as 'netral'. */
+  label: SentimentLabel | null;
   score?: number;
-  status: 'ok' | 'unavailable';
-  model: 'local-tfidf';
+  status: SentimentStatus;
+  model: 'edom-tfidf';
   analyzedAt: number;
 }
 

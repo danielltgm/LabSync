@@ -468,7 +468,7 @@ export async function handleAct(request: Request) {
         classifyReason(reason).catch(() => null),
         Promise.resolve()
           .then(() => analyzeLeaveSentiment(reason))
-          .catch(() => ({ status: 'unavailable' as const, model: 'local-tfidf' as const, analyzedAt: Date.now() })),
+          .catch(() => ({ label: null, status: 'unavailable' as const, model: 'edom-tfidf' as const, analyzedAt: Date.now() })),
       ]);
       const patch: Doc = { sentiment };
       if (category) patch.category = category;

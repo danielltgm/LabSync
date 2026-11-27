@@ -38,7 +38,10 @@ assert.ok(state.fines.length >= 3 && state.payments.length >= 3);
 assert.equal(fineIdFor('s1', '123'), 's1__123');
 assert.equal(resolveFineAmount({}, undefined), DEFAULT_FINE_AMOUNT);
 assert.equal(resolveFineAmount({ fineAmount: 15_000 }, { defaultFineAmount: 10_000 }), 15_000);
-assert.equal(analyzeLeaveSentiment('Sakit demam').status, 'unavailable');
+const sentiment = analyzeLeaveSentiment('Sakit demam');
+assert.equal(sentiment.label, null);
+assert.equal(sentiment.status, 'unavailable');
+assert.equal(sentiment.model, 'edom-tfidf');
 
 // ASLAB: full management access
 for (const act of ['saveLab', 'deleteLab', 'transferStudent', 'bulkInsertLabs', 'bulkInsertStudents', 'bulkInsertAssistants', 'setRole'] as const) {
