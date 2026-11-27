@@ -37,8 +37,8 @@ const FEATURES = [
 
 const DEMO_ROLES = [
   { role: 'praktikan', label: 'Praktikan' },
-  { role: 'asisten', label: 'Asisten' },
-  { role: 'admin', label: 'Koordinator' },
+  { role: 'asprak', label: 'Asprak' },
+  { role: 'aslab', label: 'Aslab' },
 ] as const;
 
 export default function LoginScreen() {
@@ -226,7 +226,7 @@ export default function LoginScreen() {
     </View>
   );
 
-  const demoLogin = async (role: 'praktikan' | 'asisten' | 'admin') => {
+  const demoLogin = async (role: 'praktikan' | 'asprak' | 'aslab') => {
     setError('');
     setBusy(true);
     try {

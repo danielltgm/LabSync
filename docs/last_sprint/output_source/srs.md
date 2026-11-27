@@ -121,11 +121,12 @@ flowchart LR
 
 ### `SRS-4.7` — Integrasi AI Analisis Sentimen Lokal (TF-IDF) & Pengelolaan Izin *(Owner: Zufar)*
 - Praktikan mengajukan izin pada sesi tertentu dengan menyertakan alasan ketidakhadiran.
-- Server menjalankan **model analisis sentimen lokal ringan berbasis TF-IDF** (`src/server/sentiment-tfidf.ts`) untuk mengklasifikasikan kalimat alasan izin menjadi **`positif`**, **`negatif`**, atau **`netral`** (beserta skor kepercayaan).
+- Server menjalankan **model analisis sentimen lokal pre-trained milik pengajar** (`sentiment.js` + `model-edom.json`, LinearSVC TF-IDF 3.000 fitur, ~273 KiB pure JS tanpa internet/native deps) dari [`Doctor3131/ppk-rn-expo-58/tree/main/ai`](https://github.com/Doctor3131/ppk-rn-expo-58/tree/main/ai) melalui wrapper `src/server/sentiment-tfidf.ts` untuk mengklasifikasikan kalimat alasan izin menjadi **`positif`**, **`negatif`**, atau **`netral`** (tetap mempertahankan kategori izin Sprint 2 berdampingan).
+- **Aturan `label: null` (dari `ai/README.md`):** Jika alasan kosong (`empty_input`) atau tidak mengandung kata yang dikenali kosakata model (`unknown_vocabulary`), model mengembalikan `label: null`. Aplikasi **dilarang menganggap `label: null` sebagai `'netral'`**; tampilkan penanda belum dapat dianalisis / sarankan alasan yang lebih jelas.
 - Hasil analisis AI disimpan bersama dokumen pengajuan izin di Cloud Firestore (`leaves/{id}.sentiment`).
 - Asprak melihat alasan izin beserta hasil analisis sentimen AI untuk praktikan kelas tanggung jawabnya, lalu menerima (`approved`) atau menolak (`rejected`).
 - Praktikan memantau status pengajuan izin secara *real-time*.
-- **Ketahanan Error (Graceful Fallback):** Jika modul/layanan AI mengalami gangguan atau error, dokumen izin tetap tersimpan dan tetap bisa ditinjau Asprak dengan penanda `sentiment.status = 'unavailable'`.
+- **Ketahanan Error (Graceful Fallback):** Jika modul/layanan AI mengalami gangguan atau error, dokumen izin tetap tersimpan dan tetap bisa ditinjau Asprak dengan penanda `label: null, status: 'unavailable'`.
 - **Prinsip Pendukung Keputusan:** Hasil sentimen AI hanya informasi pendukung bagi Asprak, **bukan** pengambil keputusan otomatis.
 - Izin yang disetujui terintegrasi ke presensi (`IZIN` / *excused absence*) dan pembebasan denda sesuai `SRS-4.4`.
 
@@ -192,12 +193,14 @@ flowchart LR
      }
 
      export type SentimentLabel = 'positif' | 'negatif' | 'netral';
+     export type SentimentStatus = 'predicted' | 'unknown_vocabulary' | 'empty_input' | 'unavailable';
 
      export interface LeaveSentiment {
-       label?: SentimentLabel;
+       /** null saat empty_input, unknown_vocabulary, atau unavailable — jangan dianggap 'netral'. */
+       label: SentimentLabel | null;
        score?: number;
-       status: 'ok' | 'unavailable';
-       model: 'local-tfidf';
+       status: SentimentStatus;
+       model: 'edom-tfidf';
        analyzedAt: number;
      }
 
@@ -247,7 +250,7 @@ Aturan kerja Git:
 | :--- | :--- |
 | **Daniel** (`SRS-4.1`) | `src/data/actions-aslab.ts`, `src/lib/csv-bulk.ts`, `src/components/aslab/**`, `src/app/(app)/lab/index.tsx`, `src/app/(app)/lab/[id]/index.tsx`, `src/app/(app)/lab/[id]/edit.tsx`, `src/app/(app)/lab/bulk-lab.tsx`, `src/app/(app)/lab/bulk-praktikan.tsx`, `src/app/(app)/lab/bulk-asprak.tsx`, `src/app/(app)/lab/transfer.tsx`, `src/app/(app)/(tabs)/admin.tsx`, `src/app/(app)/kelas/baru.tsx` |
 | **Yudha** (`SRS-4.4`, `4.5`, `4.6`) | `src/lib/fine-rules.ts`, `src/data/actions-fine.ts`, `src/server/midtrans.ts`, `src/app/api/payment/create+api.ts`, `src/app/api/payment/webhook+api.ts`, `src/app/api/payment/status+api.ts`, `src/components/payment/**`, `src/app/(app)/denda/index.tsx`, `src/app/(app)/denda/[id].tsx`, `src/app/(app)/denda/riwayat.tsx`, `src/app/(app)/notifikasi.tsx`, `.env.example` |
-| **Zufar** (`SRS-4.2`, `4.3`, `4.7`) | `src/server/sentiment-tfidf.ts`, `src/data/selectors-dashboard.ts`, `src/components/dashboard/**`, `src/components/app/status.tsx`, `src/app/(app)/dashboard-lab.tsx`, `src/app/(app)/(tabs)/index.tsx`, `src/app/(app)/(tabs)/izin.tsx`, `src/app/(app)/izin/baru.tsx`, `src/app/(app)/izin/[id].tsx`, `src/app/(app)/(tabs)/kelas.tsx`, `src/app/(app)/kelas/[id].tsx`, `src/app/(app)/sesi/[id]/index.tsx`, `src/app/(app)/rekap/[id].tsx`, `src/app/(app)/(tabs)/presensi.tsx` |
+| **Zufar** (`SRS-4.2`, `4.3`, `4.7`) | `src/lib/ai/sentiment.js`, `src/lib/ai/model-edom.json`, `src/server/sentiment-tfidf.ts`, `src/data/selectors-dashboard.ts`, `src/components/dashboard/**`, `src/components/app/status.tsx`, `src/app/(app)/dashboard-lab.tsx`, `src/app/(app)/(tabs)/index.tsx`, `src/app/(app)/(tabs)/izin.tsx`, `src/app/(app)/izin/baru.tsx`, `src/app/(app)/izin/[id].tsx`, `src/app/(app)/(tabs)/kelas.tsx`, `src/app/(app)/kelas/[id].tsx`, `src/app/(app)/sesi/[id]/index.tsx`, `src/app/(app)/rekap/[id].tsx`, `src/app/(app)/(tabs)/presensi.tsx` |
 
 ---
 

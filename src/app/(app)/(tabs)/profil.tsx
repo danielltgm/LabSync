@@ -38,7 +38,7 @@ import { setPrefs, usePrefs } from '@/hooks/use-prefs';
 import { setThemePreference, useThemePreference, type ThemePreference } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
 
-const ROLE_LABEL = { PRAKTIKAN: 'Praktikan', ASISTEN: 'Asisten', SUPERADMIN: 'Koordinator lab' } as const;
+const ROLE_LABEL = { PRAKTIKAN: 'Praktikan', ASPRAK: 'Asprak', ASLAB: 'Aslab' } as const;
 
 export default function ProfileScreen() {
   const { state, logout, toast } = useStore();
@@ -145,7 +145,7 @@ export default function ProfileScreen() {
                     />
                   </>
                 )}
-                {me.role === 'ASISTEN' && (
+                {me.role === 'ASPRAK' && (
                   <>
                     <RowDivider />
                     <ListRow
@@ -178,13 +178,13 @@ export default function ProfileScreen() {
                     <RowDivider />
                     <ListRow
                       title="Log perubahan"
-                      subtitle={me.role === 'SUPERADMIN' ? 'Semua perubahan di semua kelas' : 'Perubahan di kelasmu'}
+                      subtitle={me.role === 'ASLAB' ? 'Semua perubahan di semua kelas' : 'Perubahan di kelasmu'}
                       leading={<IconTile icon={History} tone="neutral" size="sm" />}
                       onPress={() => router.push('/log')}
                     />
                   </>
                 )}
-                {me.role === 'SUPERADMIN' && (
+                {me.role === 'ASLAB' && (
                   <>
                     <RowDivider />
                     <ListRow

@@ -31,9 +31,11 @@ import type {
   CheckInAttempt,
   ClassGroup,
   Course,
+  Fine,
   Lab,
   LeaveRequest,
   NavSlot,
+  PaymentTransaction,
   Quiz,
   QuizAttempt,
   Session,
@@ -102,6 +104,8 @@ const EMPTY: DemoState = {
   sessions: [],
   attendance: [],
   leaves: [],
+  fines: [],
+  payments: [],
   notifications: [],
   attempts: [],
   assignments: [],
@@ -124,6 +128,8 @@ interface Raw {
   sessions: Session[];
   attendance: Attendance[];
   leaves: LeaveRequest[];
+  fines: Fine[];
+  payments: PaymentTransaction[];
   attempts: CheckInAttempt[];
   notifications: AppNotification[];
   assignments: Assignment[];
@@ -147,6 +153,8 @@ const RAW_EMPTY: Omit<Raw, 'me'> = {
   sessions: [],
   attendance: [],
   leaves: [],
+  fines: [],
+  payments: [],
   attempts: [],
   notifications: [],
   assignments: [],
@@ -344,15 +352,17 @@ function FirebaseStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!fb || !nim || !role) return;
     const db = fb.db;
-    const isAdmin = role === 'SUPERADMIN';
+    const isAslab = role === 'ASLAB';
     const isStaff = role !== 'PRAKTIKAN';
     const mine = (name: string): Query<DocumentData> =>
-      isAdmin ? collection(db, name) : isStaff ? query(collection(db, name), where('staffNims', 'array-contains', nim)) : query(collection(db, name), where('nim', '==', nim));
+      isAslab ? collection(db, name) : isStaff ? query(collection(db, name), where('staffNims', 'array-contains', nim)) : query(collection(db, name), where('nim', '==', nim));
     const staffOnly = (name: string): Query<DocumentData> | null =>
-      isAdmin ? collection(db, name) : isStaff ? query(collection(db, name), where('staffNims', 'array-contains', nim)) : null;
+      isAslab ? collection(db, name) : isStaff ? query(collection(db, name), where('staffNims', 'array-contains', nim)) : null;
+    const fineScope = (name: string): Query<DocumentData> | null =>
+      isAslab ? collection(db, name) : role === 'PRAKTIKAN' ? query(collection(db, name), where('nim', '==', nim)) : null;
 
     const subs: [keyof Omit<Raw, 'me'>, Query<DocumentData> | null][] = [
-      ['users', isStaff ? collection(db, 'users') : query(collection(db, 'users'), where('role', 'in', ['ASISTEN', 'SUPERADMIN']))],
+      ['users', isStaff ? collection(db, 'users') : query(collection(db, 'users'), where('role', 'in', ['ASPRAK', 'ASLAB']))],
       ['labs', collection(db, 'labs')],
       ['labPhotos', collection(db, 'labPhotos')],
       ['courses', collection(db, 'courses')],
@@ -361,6 +371,8 @@ function FirebaseStoreProvider({ children }: { children: ReactNode }) {
       ['assignments', collection(db, 'assignments')],
       ['attendance', mine('attendance')],
       ['leaves', mine('leaves')],
+      ['fines', fineScope('fines')],
+      ['payments', fineScope('payments')],
       ['attempts', mine('checkinAttempts')],
       ['grades', mine('grades')],
       ['quizAttempts', mine('quizAttempts')],
@@ -414,6 +426,8 @@ function FirebaseStoreProvider({ children }: { children: ReactNode }) {
       sessions: raw.sessions,
       attendance: raw.attendance,
       leaves: raw.leaves,
+      fines: raw.fines,
+      payments: raw.payments,
       attempts: raw.attempts,
       notifications: [...raw.notifications].sort((a, b) => b.createdAt - a.createdAt),
       assignments: raw.assignments,
@@ -490,7 +504,7 @@ function FirebaseStoreProvider({ children }: { children: ReactNode }) {
       'checkIn', 'openSession', 'closeSession', 'updateSession', 'createSessions', 'submitLeave', 'reviewLeave', 'overrideAttendance',
       'setClassLinks', 'saveQuiz', 'deleteQuiz', 'setQuizStatus', 'startQuiz', 'reportViolation', 'submitQuiz', 'allowReentry',
       'gradeAnswer', 'saveLab', 'deleteLab', 'setRole', 'addUser', 'setClassAssistant', 'createClass', 'addAssignment', 'updateAssignment',
-      'deleteAssignment', 'setGrades', 'enroll', 'unenroll',
+      'deleteAssignment', 'setGrades', 'enroll', 'unenroll', 'transferStudent', 'bulkInsertLabs', 'bulkInsertStudents', 'bulkInsertAssistants',
     ];
     const serverActions = Object.fromEntries(names.map((n) => [n, server(n)])) as unknown as Omit<AsyncActions, keyof typeof direct>;
 

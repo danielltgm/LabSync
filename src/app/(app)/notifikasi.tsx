@@ -1,5 +1,5 @@
 import { router, type Href } from 'expo-router';
-import { BellOff, BellRing, CalendarClock, CheckCheck, CircleCheck, CircleX, FileText, Inbox, Megaphone, Play } from 'lucide-react-native';
+import { BellOff, BellRing, CalendarClock, CheckCheck, CircleCheck, CircleX, FileText, Inbox, Megaphone, Play, Wallet } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -22,6 +22,9 @@ const META: Record<NotificationType, { icon: typeof Inbox; tone: Tone }> = {
   LEAVE_APPROVED: { icon: CircleCheck, tone: 'success' },
   LEAVE_REJECTED: { icon: CircleX, tone: 'danger' },
   LEAVE_SUBMITTED: { icon: FileText, tone: 'info' },
+  FINE_CREATED: { icon: Wallet, tone: 'warning' },
+  PAYMENT_SUCCESS: { icon: CircleCheck, tone: 'success' },
+  PAYMENT_FAILED: { icon: CircleX, tone: 'danger' },
   REMINDER: { icon: BellRing, tone: 'brand' },
   SYSTEM: { icon: Megaphone, tone: 'neutral' },
 };

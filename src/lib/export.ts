@@ -205,7 +205,7 @@ export async function exportSessionRecap(state: DemoState, sessionId: string) {
 }
 
 export async function exportAuditLog(state: DemoState, entries: AuditEntry[]) {
-  const ROLE = { PRAKTIKAN: 'Praktikan', ASISTEN: 'Asisten', SUPERADMIN: 'Koordinator' } as const;
+  const ROLE = { PRAKTIKAN: 'Praktikan', ASPRAK: 'Asprak', ASLAB: 'Aslab' } as const;
   const data: Cell[][] = [
     [{ value: 'Log perubahan LabSync', fontWeight: 'bold' }],
     [str(`${entries.length} catatan · diekspor ${formatDate(Date.now(), { year: true })} · urut dari terbaru`)],

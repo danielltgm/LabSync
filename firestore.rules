@@ -16,25 +16,25 @@ service cloud.firestore {
     function me() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
-    function isAdmin() {
-      return signedIn() && me().role == 'SUPERADMIN';
+    function isAslab() {
+      return signedIn() && me().role == 'ASLAB';
     }
     function isStaff() {
-      return signedIn() && me().role in ['ASISTEN', 'SUPERADMIN'];
+      return signedIn() && me().role in ['ASPRAK', 'ASLAB'];
     }
-    // Class-scoped docs carry `staffNims` (the class's asisten) and `nim` (the student it is about).
+    // Class-scoped docs carry `staffNims` (the class's asprak) and `nim` (the student it is about).
     function ownsOrStaffs() {
-      return signedIn() && (isAdmin() || resource.data.nim == request.auth.uid ||
+      return signedIn() && (isAslab() || resource.data.nim == request.auth.uid ||
         ('staffNims' in resource.data && request.auth.uid in resource.data.staffNims));
     }
     function staffsClassDoc() {
-      return signedIn() && (isAdmin() || ('staffNims' in resource.data && request.auth.uid in resource.data.staffNims));
+      return signedIn() && (isAslab() || ('staffNims' in resource.data && request.auth.uid in resource.data.staffNims));
     }
 
-    // Profiles: your own, every staff profile (asisten names/phones on class pages), and staff see all.
+    // Profiles: your own, every staff profile (asprak/aslab names/phones on class pages), and staff see all.
     match /users/{nim} {
-      allow get: if signedIn() && (nim == request.auth.uid || isStaff() || resource.data.role in ['ASISTEN', 'SUPERADMIN']);
-      allow list: if signedIn() && (isStaff() || resource.data.role in ['ASISTEN', 'SUPERADMIN']);
+      allow get: if signedIn() && (nim == request.auth.uid || isStaff() || resource.data.role in ['ASPRAK', 'ASLAB']);
+      allow list: if signedIn() && (isStaff() || resource.data.role in ['ASPRAK', 'ASLAB']);
       allow update: if signedIn() && nim == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['navSlots']) &&
         request.resource.data.navSlots is list && request.resource.data.navSlots.size() <= 3;
@@ -49,11 +49,15 @@ service cloud.firestore {
     match /sessions/{id} { allow read: if signedIn(); }
     match /assignments/{id} { allow read: if signedIn(); }
 
-    // Personal records: the student it is about, the class's asisten, the koordinator.
+    // Personal records: the student it is about, the class's asprak, the aslab.
     match /attendance/{id} { allow read: if ownsOrStaffs(); }
     match /leaves/{id} { allow read: if ownsOrStaffs(); }
     match /checkinAttempts/{id} { allow read: if ownsOrStaffs(); }
     match /grades/{id} { allow read: if ownsOrStaffs(); }
+
+    // Fines & payments: server/webhook-written only; readable by owning praktikan or ASLAB.
+    match /fines/{id} { allow read: if signedIn() && (isAslab() || resource.data.nim == request.auth.uid); }
+    match /payments/{id} { allow read: if signedIn() && (isAslab() || resource.data.nim == request.auth.uid); }
 
     match /notifications/{id} {
       allow read: if signedIn() && resource.data.nim == request.auth.uid;

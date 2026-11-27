@@ -32,8 +32,8 @@ import { cn } from '@/lib/utils';
 
 export default function HomeScreen() {
   const me = useMe();
-  if (me.role === 'SUPERADMIN') return <AdminHome />;
-  if (me.role === 'ASISTEN') return <AssistantHome />;
+  if (me.role === 'ASLAB') return <AdminHome />;
+  if (me.role === 'ASPRAK') return <AssistantHome />;
   return <StudentHome />;
 }
 
@@ -203,7 +203,7 @@ function AssistantHome() {
   const { split: wide } = useLayout();
 
   const heroCard = hero ? (
-    <SessionHero session={hero} now={now} role="ASISTEN" checkedInCount={checkedIn} rosterSize={live.length ? rosterSize : undefined} />
+    <SessionHero session={hero} now={now} role="ASPRAK" checkedInCount={checkedIn} rosterSize={live.length ? rosterSize : undefined} />
   ) : (
     <Surface>
       <EmptyState
@@ -315,7 +315,7 @@ function AdminHome() {
   const { state } = useStore();
   const now = useNow(5000);
   const live = state.sessions.filter((s) => s.status === 'DIBUKA').map((s) => viewSession(state, s));
-  const assistants = state.users.filter((u) => u.role === 'ASISTEN');
+  const assistants = state.users.filter((u) => u.role === 'ASPRAK');
   const requests = state.notifications.filter((n) => n.type === 'SYSTEM' && n.href === '/admin' && !n.readAt);
 
   const heroCard = (

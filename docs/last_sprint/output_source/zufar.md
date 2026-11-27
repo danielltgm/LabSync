@@ -40,14 +40,19 @@ Zufar - SRS-4.7 : Sebagai Praktikan dan Asprak, saya dapat mengajukan dan meninj
     - Tidak ada tombol buat pertemuan/jadwal baru atau ubah konfigurasi lab dari beranda/kelas `ASPRAK`.
     - Fokuskan `AsprakHome` (`(tabs)/index.tsx`) pada: sesi aktif/berikutnya (buka/tutup cepat), daftar izin menunggu review, dan jadwal hari ini.
 
-### C. Analisis Sentimen Model Lokal (TF-IDF) & Pengelolaan Izin (`SRS-4.7`)
-- **Implementasi Model Sentimen Lokal TF-IDF (`src/server/sentiment-tfidf.ts`):**
-  - Bangun classifier TF-IDF ringan berbahasa Indonesia (TypeScript murni tanpa ketergantungan binary berat, siap jalan di Node/Vercel/Expo Server) dengan korpus pelatihan berlabel untuk alasan izin praktikum.
-  - Output klasifikasi wajib salah satu dari 3 label: **`positif`**, **`negatif`**, atau **`netral`**, disertai `score` (`0..1`), `status: 'ok' | 'unavailable'`, `model: 'local-tfidf'`, dan `analyzedAt`.
-  - **Graceful Error Handling:** Bungkus eksekusi dalam `try/catch` (dan validasi input kosong/tak terduga). Jika terjadi kegagalan/error, kembalikan `{ status: 'unavailable', model: 'local-tfidf', analyzedAt: Date.now() }` sehingga pengajuan dan peninjauan izin **tetap berjalan lancar tanpa terhambat**.
-  - Hasil analisis otomatis tersimpan di Cloud Firestore bersama dokumen pengajuan izin (`leaves/{id}.sentiment`) melalui hook `submitLeave` dari Commit 0.
+### C. Analisis Sentimen Model Lokal EDOM (TF-IDF) & Pengelolaan Izin (`SRS-4.7`)
+- **Integrasi Model Sentimen Lokal Pengajar (`Doctor3131/ppk-rn-expo-58/tree/main/ai`):**
+  - Salin langsung 2 file resmi dari repositori pengajar (tanpa melatih/membuat korpus TF-IDF sendiri):
+    - `sentiment.js` → `src/lib/ai/sentiment.js` *(pure JS inference, zero dependency, ekspor `createSentimentClassifier`)*
+    - `model-edom.json` → `src/lib/ai/model-edom.json` *(model LinearSVC TF-IDF pre-trained ~273 KiB, 3.000 vocab, label `['negatif', 'netral', 'positif']`)*
+  - Implementasikan wrapper di `src/server/sentiment-tfidf.ts` yang memanggil `createSentimentClassifier(model)(reason)` dan memetakan hasilnya ke kontrak `LeaveSentiment`:
+    - `status === 'predicted'` → `{ label: res.label, score: Math.max(...res.scores), status: 'predicted', model: 'edom-tfidf', analyzedAt: Date.now() }`.
+    - `label === null` (`'unknown_vocabulary'` / `'empty_input'`) → `{ label: null, status: res.status, model: 'edom-tfidf', analyzedAt: Date.now() }`.
+    - **Aturan Wajib `ai/README.md`:** **Jangan pernah menganggap `label: null` sebagai `'netral'`!**
+  - **Graceful Error Handling:** Bungkus eksekusi dalam `try/catch`; jika terjadi kegagalan/error, kembalikan `{ label: null, status: 'unavailable', model: 'edom-tfidf', analyzedAt: Date.now() }` sehingga pengajuan dan peninjauan izin **tetap berjalan lancar tanpa terhambat**.
+  - Hasil analisis otomatis tersimpan di Cloud Firestore bersama dokumen pengajuan izin (`leaves/{id}.sentiment`) melalui hook `submitLeave` dari Commit 0 (berdampingan dengan `category` dari Sprint 2).
 - **Penyempurnaan UI Pengajuan & Peninjauan Izin:**
-  - Komponen `AiSentimentPill` di `src/components/app/status.tsx` untuk menampilkan badge sentimen (`Positif`, `Negatif`, `Netral`, atau `Analisis AI tidak tersedia` saat fallback).
+  - Komponen `AiSentimentPill` di `src/components/app/status.tsx` untuk menampilkan 5 kondisi: `Positif`, `Negatif`, `Netral`, `Belum dapat dianalisis` (`unknown_vocabulary` / `empty_input`), dan `Analisis AI tidak tersedia` (`unavailable`).
   - Tampilkan hasil analisis sentimen AI di daftar izin (`(tabs)/izin.tsx`) dan detail izin (`/izin/[id].tsx`) lengkap dengan keterangan eksplisit bahwa **hasil AI hanya informasi pendukung bagi Asprak, bukan keputusan otomatis**.
   - Praktikan dapat memantau status izin (`pending` / `approved` / `rejected`) secara *real-time*.
   - Pastikan tampilan detail izin & konfirmasi persetujuan menjelaskan dengan jelas bahwa izin yang disetujui dicatat sebagai **tidak hadir dengan izin (`IZIN` / *excused absence*)** dan **dibebaskan dari denda keterlambatan** (tidak berubah menjadi `HADIR`).
@@ -70,7 +75,9 @@ Zufar - SRS-4.7 : Sebagai Praktikan dan Asprak, saya dapat mengajukan dan meninj
 Zufar memiliki kepemilikan penuh atas file-file berikut dan **tidak boleh** mengedit file milik Daniel atau Yudha:
 
 - **AI & Dashboard Selectors:**
-  - `src/server/sentiment-tfidf.ts` *(implementasi model TF-IDF lokal + korpus Indonesia + fallback aman)*
+  - `src/lib/ai/sentiment.js` *(salinan langsung dari `Doctor3131/ppk-rn-expo-58/main/ai/sentiment.js`)*
+  - `src/lib/ai/model-edom.json` *(salinan langsung dari `Doctor3131/ppk-rn-expo-58/main/ai/model-edom.json`)*
+  - `src/server/sentiment-tfidf.ts` *(wrapper `createSentimentClassifier(model)` → `LeaveSentiment` + fallback aman)*
   - `src/data/selectors-dashboard.ts` *(agregasi filter Hari/Minggu/Bulan untuk status lab, jadwal, riwayat kegiatan, dan riwayat keuangan denda)*
 - **Komponen UI:**
   - `src/components/dashboard/period-filter.tsx` *(segmented filter Hari / Minggu / Bulan)*
@@ -98,6 +105,6 @@ Zufar memiliki kepemilikan penuh atas file-file berikut dan **tidak boleh** meng
 - [ ] Dashboard `ASLAB` (`/dashboard-lab` & Beranda Aslab) menampilkan jumlah lab & praktikan, status setiap lab, lokasi & waktu, jadwal berlangsung/mendatang, riwayat kegiatan lab, dan riwayat keuangan denda dari Firestore.
 - [ ] Filter **Hari**, **Minggu**, dan **Bulan** secara akurat mengubah data jadwal, riwayat kegiatan, dan ringkasan keuangan yang ditampilkan.
 - [ ] Login sebagai `ASPRAK`: hanya bisa melihat kelas tanggung jawabnya, membuka/menutup sesi (sinkron real-time ke akun `PRAKTIKAN`), memantau presensi, dan meninjau izin — tidak ada tombol/akses manajemen lab atau distribusi praktikan.
-- [ ] Pengajuan izin oleh `PRAKTIKAN` otomatis menghasilkan field `sentiment` (`positif` / `negatif` / `netral`) dari model lokal TF-IDF dan tersimpan di Cloud Firestore.
+- [ ] Pengajuan izin oleh `PRAKTIKAN` otomatis menghasilkan field `sentiment` dari `sentiment.js` + `model-edom.json` (`positif` / `negatif` / `netral`, atau `label: null` saat `unknown_vocabulary`/`empty_input` tanpa dianggap `netral`) dan tersimpan di Cloud Firestore.
 - [ ] Simulasi gangguan/error pada analisis AI tetap meloloskan pengajuan & peninjauan izin dengan penanda fallback aman (`unavailable`).
 - [ ] Persetujuan izin oleh `ASPRAK` menampilkan keterangan bahwa praktikan dicatat `IZIN` (*excused absence*, bukan `HADIR`) dan dibebaskan dari denda.

@@ -18,7 +18,7 @@ export default function LabList() {
   const { state } = useStore();
   const me = useMe();
   const now = useNow(30_000);
-  const canEdit = me.role !== 'PRAKTIKAN';
+  const canEdit = me.role === 'ASLAB';
 
   return (
     <Screen

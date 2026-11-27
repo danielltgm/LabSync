@@ -28,8 +28,8 @@ export function viewSession(state: DemoState, session: Session): SessionView {
 }
 
 export function classesForUser(state: DemoState, user: User) {
-  if (user.role === 'SUPERADMIN') return state.classes;
-  if (user.role === 'ASISTEN') return state.classes.filter((c) => c.assistantNims.includes(user.nim));
+  if (user.role === 'ASLAB') return state.classes;
+  if (user.role === 'ASPRAK') return state.classes.filter((c) => c.assistantNims.includes(user.nim));
   return state.classes.filter((c) => c.studentNims.includes(user.nim));
 }
 

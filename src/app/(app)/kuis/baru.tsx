@@ -27,7 +27,7 @@ export default function NewQuiz() {
   const [error, setError] = useState('');
 
   const s = raw ? viewSession(state, raw) : null;
-  if (!s || (me.role !== 'SUPERADMIN' && !s.cls.assistantNims.includes(me.nim))) {
+  if (!s || (me.role !== 'ASLAB' && !s.cls.assistantNims.includes(me.nim))) {
     return (
       <Screen header={<PageHeader title="Buat kuis" />}>
         <EmptyState icon={ListChecks} title="Pertemuan tidak ditemukan" body="Buat kuis dari halaman pertemuan kelasmu." />

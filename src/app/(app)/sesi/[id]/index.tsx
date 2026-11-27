@@ -55,7 +55,7 @@ export default function SessionDetail() {
     );
   }
   const s = viewSession(state, raw);
-  const isStaff = me.role !== 'PRAKTIKAN' && (me.role === 'SUPERADMIN' || s.cls.assistantNims.includes(me.nim));
+  const isStaff = me.role !== 'PRAKTIKAN' && (me.role === 'ASLAB' || s.cls.assistantNims.includes(me.nim));
   const record = attendanceFor(state, s.id, me.nim);
   const leave = leaveFor(state, s.id, me.nim);
   const roster = isStaff ? sessionRoster(state, s) : [];

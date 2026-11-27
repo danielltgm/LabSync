@@ -1,6 +1,17 @@
 import { classifyByKeywords, type LeaveCategory } from '@/firebase/ai-classifier';
 import { evaluateCheckIn, type CheckInVerdict } from '@/lib/attendance-rules';
 import { formatDate, formatTimeRange, HOUR, MINUTE } from '@/lib/format';
+import {
+  bulkInsertAssistants,
+  bulkInsertLabs,
+  bulkInsertStudents,
+  transferStudent,
+  type BulkAssistantsInput,
+  type BulkLabsInput,
+  type BulkStudentsInput,
+  type TransferStudentInput,
+} from './actions-aslab';
+import { onAttendanceRecorded, onLeaveApproved } from './actions-fine';
 import { appendLog, type AuditDraft } from './audit';
 import type { DemoState } from './demo-seed';
 import { attemptFor, quizScore } from './quiz';
@@ -93,6 +104,10 @@ export interface ActionSignatures {
   setGrades: (changes: { assignmentId: string; nim: string; score: number | null }[], reason?: string) => void;
   enroll: (classId: string, nims: string[]) => number;
   unenroll: (classId: string, nim: string) => void;
+  transferStudent: (input: TransferStudentInput) => number;
+  bulkInsertLabs: (input: BulkLabsInput) => number;
+  bulkInsertStudents: (input: BulkStudentsInput) => number;
+  bulkInsertAssistants: (input: BulkAssistantsInput) => number;
   markRead: (id: string) => void;
   markAllRead: () => void;
 }
@@ -185,19 +200,18 @@ export function createActions(ctx: ActionContext) {
             ...draft.attempts,
           ];
           if (verdict.ok) {
-            draft.attendance = [
-              ...draft.attendance,
-              {
-                id: `${sessionId}__${user.nim}`,
-                sessionId,
-                nim: user.nim,
-                status: verdict.status,
-                method,
-                checkedInAt: Date.now(),
-                distanceM: verdict.distanceM ? Math.round(verdict.distanceM) : undefined,
-                accuracyM: verdict.accuracyM ? Math.round(verdict.accuracyM) : undefined,
-              },
-            ];
+            const attendanceRecord = {
+              id: `${sessionId}__${user.nim}`,
+              sessionId,
+              nim: user.nim,
+              status: verdict.status,
+              method,
+              checkedInAt: Date.now(),
+              distanceM: verdict.distanceM ? Math.round(verdict.distanceM) : undefined,
+              accuracyM: verdict.accuracyM ? Math.round(verdict.accuracyM) : undefined,
+            };
+            draft.attendance = [...draft.attendance, attendanceRecord];
+            onAttendanceRecorded(draft, attendanceRecord, session, lab, notify);
           }
           return verdict;
         }),
@@ -352,6 +366,7 @@ export function createActions(ctx: ActionContext) {
             // Decision changed to rejected after the fact: no check-in, so the closed session counts as alpha again.
             if (decision === 'rejected' && record?.status === 'IZIN' && record.method === 'MANUAL') record.status = 'ALPHA';
           }
+          if (decision === 'approved') onLeaveApproved(draft, leave, session);
           notify(draft, [leave.nim], decision === 'approved' ? 'LEAVE_APPROVED' : 'LEAVE_REJECTED',
             `Izin ${decision === 'approved' ? 'disetujui' : 'ditolak'} · ${view.course.name}`,
             `Pertemuan ${view.meetingNo}${note ? `: "${note}"` : ''} oleh ${reviewer.name}.`, `/izin/${leaveId}`);
@@ -562,6 +577,11 @@ export function createActions(ctx: ActionContext) {
           record(draft, { kind: 'ANGGOTA', classId, target: `${course?.name ?? ''} ${cls.label}`, summary: 'Mengeluarkan praktikan', changes: [{ label: 'Praktikan', to: `${nameOf(draft, target)} dikeluarkan` }] });
           cls.studentNims = cls.studentNims.filter((n) => n !== target);
         }),
+
+      transferStudent: (input) => run((draft) => transferStudent(draft, input)),
+      bulkInsertLabs: (input) => run((draft) => bulkInsertLabs(draft, input)),
+      bulkInsertStudents: (input) => run((draft) => bulkInsertStudents(draft, input)),
+      bulkInsertAssistants: (input) => run((draft) => bulkInsertAssistants(draft, input)),
 
       setClassLinks: (classId, links) =>
         run((draft) => {
